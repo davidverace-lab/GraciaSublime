@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(taskkill:*)",
+      "Bash(git mv:*)",
+      "Bash(ren:*)",
+      "Bash(mv:*)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(node fix_indentation.js:*)",
+      "Bash(del fix_indentation.js)",
+      "Bash(npx expo start --help:*)",
+      "Bash(npx expo start:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(timeout /t 10 /nobreak)",
+      "Bash(tree:*)",
+      "Bash(nul)",
+      "Bash(ping:*)",
+      "Bash(netstat:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(move babel_config.js babel.config.js)",
+      "Bash(npx react-native:*)",
+      "Bash(psql:*)",
+      "Bash(if [ -f .env ])",
+      "Bash(then echo \"Archivo .env existe\")",
+      "Bash(else echo \"Archivo .env NO existe\")",
+      "Bash(fi)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
