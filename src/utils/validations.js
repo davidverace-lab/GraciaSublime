@@ -5,6 +5,7 @@
 /**
  * Valida que un email tenga el formato correcto
  * Requisitos: debe tener @, punto después del @, y terminar en .com
+ * Solo acepta dominios: gmail.com, outlook.com, yahoo.com, hotmail.com
  */
 export const validateEmail = (email) => {
         const trimmedEmail = email.trim();
@@ -30,9 +31,18 @@ export const validateEmail = (email) => {
                 return { isValid: false, error: 'El email debe tener un punto en el dominio (ej: @gmail.com)' };
         }
 
-        // Verificar que termine en .com
-        if (!trimmedEmail.toLowerCase().endsWith('.com')) {
-                return { isValid: false, error: 'El email debe terminar en .com' };
+        // Dominios permitidos
+        const allowedDomains = ['gmail.com', 'outlook.com', 'yahoo.com', 'hotmail.com'];
+        const emailLower = trimmedEmail.toLowerCase();
+
+        // Verificar que el email termine con uno de los dominios permitidos
+        const isValidDomain = allowedDomains.some(domain => emailLower.endsWith('@' + domain));
+
+        if (!isValidDomain) {
+                return {
+                        isValid: false,
+                        error: 'Solo se aceptan correos de Gmail, Outlook, Yahoo o Hotmail'
+                };
         }
 
         // Validación adicional: verificar que haya algo después del punto

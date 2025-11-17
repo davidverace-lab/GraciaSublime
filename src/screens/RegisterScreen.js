@@ -157,7 +157,7 @@ const RegisterScreen = ({ navigation }) => {
                                                 />
 
                                                 <CustomInput
-                                                        placeholder="Email (debe terminar en .com)"
+                                                        placeholder="Email (Gmail, Outlook, Yahoo o Hotmail)"
                                                         value={email}
                                                         on_change_text={(text) => {
                                                                 set_email(text);

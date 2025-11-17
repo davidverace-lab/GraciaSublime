@@ -15,6 +15,7 @@ import { COLORS } from '../constants/colors.js';
 import CustomButton from '../components/CustomButton.js';
 import CustomInput from '../components/CustomInput.js';
 import { sendPasswordResetEmail } from '../services/emailService.js';
+import { validateEmail } from '../utils/validations.js';
 
 const ForgotPasswordScreen = ({ navigation }) => {
         const [email, setEmail] = useState('');
@@ -26,10 +27,10 @@ const ForgotPasswordScreen = ({ navigation }) => {
                         return;
                 }
 
-                // Validar formato de email
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(email.trim())) {
-                        Alert.alert('Error', 'Por favor ingresa un email válido');
+                // Validar formato de email usando la función de validación
+                const emailValidation = validateEmail(email.trim());
+                if (!emailValidation.isValid) {
+                        Alert.alert('Error', emailValidation.error);
                         return;
                 }
 
@@ -91,7 +92,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                                                 </Text>
 
                                                 <CustomInput
-                                                        placeholder="Email"
+                                                        placeholder="Email (Gmail, Outlook, Yahoo o Hotmail)"
                                                         value={email}
                                                         on_change_text={setEmail}
                                                         keyboard_type="email-address"
