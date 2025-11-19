@@ -24,6 +24,7 @@ import { PRODUCTS } from '../data/products.js';
 import ProductCard from '../components/ProductCard.js';
 import ImageEditorModal from '../components/ImageEditorModal.js';
 import { PREDESIGNED_TEMPLATES, DESIGN_CATEGORIES } from '../data/predesignedTemplates.js';
+import { getVariantsByGender, findVariant } from '../services/productVariantsService.js';
 
 const TAZA_DESIGNS = [
     { id: 1, name: 'Clásica Blanca', icon: 'cafe', color: '#FFFFFF' },
@@ -91,6 +92,13 @@ const ProductDetailScreen = ({ navigation, route }) => {
     const [selected_template, set_selected_template] = useState(null);
     const [template_category, set_template_category] = useState('all');
 
+    // Estados para tallas y variantes
+    const [variants, set_variants] = useState({ male: [], female: [], unisex: [] });
+    const [selected_size, set_selected_size] = useState(null);
+    const [selected_gender, set_selected_gender] = useState(null);
+    const [selected_variant, set_selected_variant] = useState(null);
+    const [loading_variants, set_loading_variants] = useState(false);
+
     // Animaciones
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(50)).current;
@@ -136,6 +144,73 @@ const ProductDetailScreen = ({ navigation, route }) => {
             console.log('custom_image actualizado:', custom_image);
         }
     }, [custom_image]);
+
+    // Cargar variantes del producto
+    useEffect(() => {
+        const load_variants = async () => {
+            // Solo cargar variantes si el producto es camisa (category_id: 3) o gorra (category_id: 2)
+            const category_id = product.category_id || product.categories?.category_id;
+
+            if (!category_id || (category_id !== 2 && category_id !== 3)) {
+                // No es camisa ni gorra, no necesita tallas
+                return;
+            }
+
+            set_loading_variants(true);
+            try {
+                const { data, error } = await getVariantsByGender(product.product_id);
+
+                if (error) {
+                    console.error('Error cargando variantes:', error);
+                    return;
+                }
+
+                set_variants(data);
+
+                // Si solo hay un tipo (unisex para gorras), auto-seleccionar
+                if (data.unisex.length > 0 && data.male.length === 0 && data.female.length === 0) {
+                    set_selected_gender('unisex');
+                }
+            } catch (error) {
+                console.error('Error en load_variants:', error);
+            } finally {
+                set_loading_variants(false);
+            }
+        };
+
+        load_variants();
+    }, [product]);
+
+    // Actualizar variante seleccionada cuando cambian género o talla
+    useEffect(() => {
+        const update_selected_variant = async () => {
+            if (!selected_size) {
+                set_selected_variant(null);
+                return;
+            }
+
+            try {
+                const { data, error } = await findVariant(
+                    product.product_id,
+                    selected_size,
+                    selected_gender === 'unisex' ? null : selected_gender
+                );
+
+                if (error) {
+                    console.error('Error buscando variante:', error);
+                    set_selected_variant(null);
+                    return;
+                }
+
+                set_selected_variant(data);
+            } catch (error) {
+                console.error('Error en update_selected_variant:', error);
+                set_selected_variant(null);
+            }
+        };
+
+        update_selected_variant();
+    }, [selected_size, selected_gender, product]);
 
     // Calcular rating promedio
     const average_rating = MOCK_REVIEWS.reduce((acc, review) => acc + review.rating, 0) / MOCK_REVIEWS.length;
@@ -185,6 +260,31 @@ const ProductDetailScreen = ({ navigation, route }) => {
 
     const handle_add_to_cart = async () => {
         try {
+            // Verificar si el producto requiere talla (camisas o gorras)
+            const category_id = product.category_id || product.categories?.category_id;
+            const requires_size = category_id === 2 || category_id === 3; // Gorras o Camisas
+
+            if (requires_size && !selected_variant) {
+                Alert.alert(
+                    'Selecciona una talla',
+                    category_id === 3
+                        ? 'Por favor selecciona el género y la talla antes de agregar al carrito'
+                        : 'Por favor selecciona una talla antes de agregar al carrito'
+                );
+                return;
+            }
+
+            // Verificar stock de la variante
+            if (requires_size && selected_variant) {
+                if (!selected_variant.is_available || selected_variant.stock < quantity) {
+                    Alert.alert(
+                        'Sin stock suficiente',
+                        `Solo hay ${selected_variant.stock} unidades disponibles de esta talla`
+                    );
+                    return;
+                }
+            }
+
             const final_price = selected_template
                 ? product.price + selected_template.price
                 : product.price;
@@ -196,6 +296,9 @@ const ProductDetailScreen = ({ navigation, route }) => {
                 customDesign: selected_design,
                 customTemplate: selected_template,
                 customImage: custom_image,
+                variant_id: selected_variant?.variant_id,
+                selected_size,
+                selected_gender: selected_gender === 'unisex' ? null : selected_gender,
             }, quantity);
 
             if (result.success) {
@@ -293,6 +396,33 @@ const ProductDetailScreen = ({ navigation, route }) => {
     const handle_close_editor = () => {
         set_show_image_editor(false);
         set_temp_image(null);
+    };
+
+    // Funciones para manejar selección de tallas
+    const handle_select_gender = (gender) => {
+        set_selected_gender(gender);
+        set_selected_size(null); // Resetear talla al cambiar género
+        set_selected_variant(null);
+    };
+
+    const handle_select_size = (size) => {
+        set_selected_size(size);
+    };
+
+    // Verificar si el producto requiere tallas
+    const requires_size_selection = () => {
+        const category_id = product.category_id || product.categories?.category_id;
+        return category_id === 2 || category_id === 3; // Gorras o Camisas
+    };
+
+    const is_shirt = () => {
+        const category_id = product.category_id || product.categories?.category_id;
+        return category_id === 3; // Camisas
+    };
+
+    const is_cap = () => {
+        const category_id = product.category_id || product.categories?.category_id;
+        return category_id === 2; // Gorras
     };
 
     // Función para verificar si un texto coincide con la búsqueda
@@ -436,6 +566,120 @@ const ProductDetailScreen = ({ navigation, route }) => {
                             {selected_design || selected_template ? 'Cambiar Diseño' : 'Elegir Diseño'}
                         </Text>
                     </TouchableOpacity>
+
+                    {/* Sección de selección de tallas (solo para camisas y gorras) */}
+                    {requires_size_selection() && (
+                        <View style={styles.sizeSection}>
+                            {/* Selección de género (solo para camisas) */}
+                            {is_shirt() && variants && (variants.male.length > 0 || variants.female.length > 0) && (
+                                <View style={styles.genderSelection}>
+                                    <Text style={styles.sizeLabel}>Género:</Text>
+                                    <View style={styles.genderButtons}>
+                                        {variants.male.length > 0 && (
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.genderButton,
+                                                    selected_gender === 'male' && styles.genderButtonSelected
+                                                ]}
+                                                onPress={() => handle_select_gender('male')}
+                                            >
+                                                <Ionicons
+                                                    name="male"
+                                                    size={20}
+                                                    color={selected_gender === 'male' ? COLORS.white : COLORS.primary}
+                                                />
+                                                <Text style={[
+                                                    styles.genderButtonText,
+                                                    selected_gender === 'male' && styles.genderButtonTextSelected
+                                                ]}>
+                                                    Hombre
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {variants.female.length > 0 && (
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.genderButton,
+                                                    selected_gender === 'female' && styles.genderButtonSelected
+                                                ]}
+                                                onPress={() => handle_select_gender('female')}
+                                            >
+                                                <Ionicons
+                                                    name="female"
+                                                    size={20}
+                                                    color={selected_gender === 'female' ? COLORS.white : COLORS.primary}
+                                                />
+                                                <Text style={[
+                                                    styles.genderButtonText,
+                                                    selected_gender === 'female' && styles.genderButtonTextSelected
+                                                ]}>
+                                                    Mujer
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                </View>
+                            )}
+
+                            {/* Selección de talla */}
+                            {((is_cap() && variants.unisex.length > 0) ||
+                              (is_shirt() && selected_gender && variants[selected_gender]?.length > 0)) && (
+                                <View style={styles.sizeSelection}>
+                                    <Text style={styles.sizeLabel}>
+                                        Talla: {selected_size && `(${selected_size.toUpperCase()})`}
+                                    </Text>
+                                    <View style={styles.sizeButtons}>
+                                        {(is_cap() ? variants.unisex : variants[selected_gender] || []).map((variant) => (
+                                            <TouchableOpacity
+                                                key={variant.variant_id}
+                                                style={[
+                                                    styles.sizeButton,
+                                                    selected_size === variant.size && styles.sizeButtonSelected,
+                                                    !variant.is_available && styles.sizeButtonDisabled
+                                                ]}
+                                                onPress={() => handle_select_size(variant.size)}
+                                                disabled={!variant.is_available}
+                                            >
+                                                <Text style={[
+                                                    styles.sizeButtonText,
+                                                    selected_size === variant.size && styles.sizeButtonTextSelected,
+                                                    !variant.is_available && styles.sizeButtonTextDisabled
+                                                ]}>
+                                                    {variant.size.toUpperCase()}
+                                                </Text>
+                                                {!variant.is_available && (
+                                                    <View style={styles.unavailableLine} />
+                                                )}
+                                                {variant.stock < 5 && variant.stock > 0 && (
+                                                    <Text style={styles.lowStockText}>
+                                                        ¡{variant.stock} left!
+                                                    </Text>
+                                                )}
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    {selected_variant && (
+                                        <View style={styles.stockInfo}>
+                                            <Ionicons
+                                                name={selected_variant.stock > 10 ? 'checkmark-circle' : 'alert-circle'}
+                                                size={16}
+                                                color={selected_variant.stock > 10 ? '#4CAF50' : '#FF9800'}
+                                            />
+                                            <Text style={styles.stockInfoText}>
+                                                {selected_variant.stock > 10
+                                                    ? 'En stock'
+                                                    : `Solo ${selected_variant.stock} disponibles`}
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                            )}
+
+                            {loading_variants && (
+                                <Text style={styles.loadingText}>Cargando tallas...</Text>
+                            )}
+                        </View>
+                    )}
 
                     {/* Contador de cantidad y botón de agregar al carrito */}
                     <View style={styles.cartSection}>
@@ -1445,6 +1689,126 @@ const styles = StyleSheet.create({
         right: 8,
         backgroundColor: 'white',
         borderRadius: 14,
+    },
+    // Estilos para selección de tallas
+    sizeSection: {
+        marginTop: 15,
+        marginBottom: 10,
+        padding: 15,
+        backgroundColor: '#f9f9f9',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+    },
+    genderSelection: {
+        marginBottom: 15,
+    },
+    sizeLabel: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: COLORS.textDark,
+        marginBottom: 10,
+    },
+    genderButtons: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    genderButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 12,
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: COLORS.primary,
+        backgroundColor: COLORS.white,
+        gap: 6,
+    },
+    genderButtonSelected: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    genderButtonText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: COLORS.primary,
+    },
+    genderButtonTextSelected: {
+        color: COLORS.white,
+    },
+    sizeSelection: {
+        marginTop: 5,
+    },
+    sizeButtons: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 10,
+    },
+    sizeButton: {
+        minWidth: 50,
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+        borderRadius: 8,
+        borderWidth: 2,
+        borderColor: '#ddd',
+        backgroundColor: COLORS.white,
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+    },
+    sizeButtonSelected: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    sizeButtonDisabled: {
+        backgroundColor: '#f0f0f0',
+        borderColor: '#ccc',
+        opacity: 0.5,
+    },
+    sizeButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.textDark,
+    },
+    sizeButtonTextSelected: {
+        color: COLORS.white,
+    },
+    sizeButtonTextDisabled: {
+        color: '#999',
+    },
+    unavailableLine: {
+        position: 'absolute',
+        width: '100%',
+        height: 2,
+        backgroundColor: '#ff0000',
+        transform: [{ rotate: '-45deg' }],
+    },
+    lowStockText: {
+        fontSize: 9,
+        color: '#FF9800',
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    stockInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 8,
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        gap: 6,
+    },
+    stockInfoText: {
+        fontSize: 13,
+        color: COLORS.textDark,
+        fontWeight: '500',
+    },
+    loadingText: {
+        fontSize: 14,
+        color: '#999',
+        textAlign: 'center',
+        padding: 10,
     },
 });
 

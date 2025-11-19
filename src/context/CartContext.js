@@ -48,7 +48,12 @@ export const CartProvider = ({ children }) => {
                         }
 
                         set_loading(true);
-                        const { data, error } = await addToCart(user.id, product.product_id || product.id, quantity);
+
+                        // Extraer variant_id si existe en el producto
+                        const variant_id = product.variant_id || null;
+                        const product_id = product.product_id || product.id;
+
+                        const { data, error } = await addToCart(user.id, product_id, quantity, variant_id);
                         if (error) throw error;
 
                         // Recargar carrito para obtener datos actualizados

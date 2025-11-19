@@ -19,6 +19,14 @@ export const getCartItems = async (userId) => {
           price,
           image_url,
           category_id
+        ),
+        product_variants (
+          variant_id,
+          size,
+          gender,
+          stock,
+          is_available,
+          price_adjustment
         )
       `)
       .eq('user_id', userId);
@@ -32,15 +40,23 @@ export const getCartItems = async (userId) => {
 };
 
 // Agregar item al carrito
-export const addToCart = async (userId, productId, quantity = 1) => {
+export const addToCart = async (userId, productId, quantity = 1, variantId = null) => {
   try {
-    // Primero verificar si el producto ya está en el carrito
-    const { data: existingItem, error: checkError } = await supabase
+    // Primero verificar si el producto ya está en el carrito (con la misma variante)
+    let checkQuery = supabase
       .from('cart_items')
       .select('*')
       .eq('user_id', userId)
-      .eq('product_id', productId)
-      .maybeSingle();
+      .eq('product_id', productId);
+
+    // Si hay variante, verificar que sea la misma variante
+    if (variantId) {
+      checkQuery = checkQuery.eq('variant_id', variantId);
+    } else {
+      checkQuery = checkQuery.is('variant_id', null);
+    }
+
+    const { data: existingItem, error: checkError } = await checkQuery.maybeSingle();
 
     if (checkError) throw checkError;
 
@@ -59,6 +75,14 @@ export const addToCart = async (userId, productId, quantity = 1) => {
             price,
             image_url,
             category_id
+          ),
+          product_variants (
+            variant_id,
+            size,
+            gender,
+            stock,
+            is_available,
+            price_adjustment
           )
         `)
         .single();
@@ -67,13 +91,20 @@ export const addToCart = async (userId, productId, quantity = 1) => {
       return { data, error: null };
     } else {
       // Si no existe, crear nuevo item
+      const insertData = {
+        user_id: userId,
+        product_id: productId,
+        quantity,
+      };
+
+      // Solo agregar variant_id si existe
+      if (variantId) {
+        insertData.variant_id = variantId;
+      }
+
       const { data, error } = await supabase
         .from('cart_items')
-        .insert([{
-          user_id: userId,
-          product_id: productId,
-          quantity,
-        }])
+        .insert([insertData])
         .select(`
           *,
           products (
@@ -83,6 +114,14 @@ export const addToCart = async (userId, productId, quantity = 1) => {
             price,
             image_url,
             category_id
+          ),
+          product_variants (
+            variant_id,
+            size,
+            gender,
+            stock,
+            is_available,
+            price_adjustment
           )
         `)
         .single();
@@ -117,6 +156,14 @@ export const updateCartItemQuantity = async (cartItemId, quantity) => {
           price,
           image_url,
           category_id
+        ),
+        product_variants (
+          variant_id,
+          size,
+          gender,
+          stock,
+          is_available,
+          price_adjustment
         )
       `)
       .single();

@@ -89,6 +89,31 @@ const CartItem = ({ item, on_update_quantity, on_remove }) => {
                                                 <Text style={styles.customization_text}>Personalizada</Text>
                                         </View>
                                 )}
+
+                                {/* Mostrar talla y género si existen */}
+                                {item.product_variants && (
+                                        <View style={styles.variant_info_container}>
+                                                {item.product_variants.gender && (
+                                                        <View style={styles.variant_badge}>
+                                                                <Ionicons
+                                                                        name={item.product_variants.gender === 'male' ? 'male' : 'female'}
+                                                                        size={12}
+                                                                        color={COLORS.primary}
+                                                                />
+                                                                <Text style={styles.variant_text}>
+                                                                        {item.product_variants.gender === 'male' ? 'Hombre' : 'Mujer'}
+                                                                </Text>
+                                                        </View>
+                                                )}
+                                                <View style={styles.variant_badge}>
+                                                        <Ionicons name="resize-outline" size={12} color={COLORS.primary} />
+                                                        <Text style={styles.variant_text}>
+                                                                Talla: {item.product_variants.size?.toUpperCase()}
+                                                        </Text>
+                                                </View>
+                                        </View>
+                                )}
+
                                 {item.products?.category && (
                                         <Text style={styles.category_text}>{item.products.category}</Text>
                                 )}
@@ -218,6 +243,27 @@ const styles = StyleSheet.create({
         },
         quantity_container: {
                 marginLeft: 10,
+        },
+        variant_info_container: {
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 6,
+                marginTop: 5,
+                marginBottom: 5,
+        },
+        variant_badge: {
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#f0f0f0',
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                borderRadius: 8,
+                gap: 4,
+        },
+        variant_text: {
+                fontSize: 11,
+                color: COLORS.textDark,
+                fontWeight: '600',
         },
 });
 
