@@ -11,12 +11,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors.js';
 import CustomButton from '../components/CustomButton.js';
-import { verifyCode, sendVerificationCode } from '../services/smsService.js';
+import { verifyRecoveryCode, sendRecoveryCode } from '../services/passwordResetService.js';
 
 const VerifyCodeScreen = ({ navigation, route }) => {
-        const { identifier, isPhone, devCode } = route.params;
-        const [code, setCode] = useState(['', '', '', '', '', '']);
+        const { email, devCode } = route.params;
+        const [code, setCode] = useState(['', '', '', '']);
         const [loading, setLoading] = useState(false);
+        const [error, setError] = useState('');
         const [resendTimer, setResendTimer] = useState(60);
         const inputRefs = useRef([]);
 
@@ -44,16 +45,17 @@ const VerifyCodeScreen = ({ navigation, route }) => {
                 const newCode = [...code];
                 newCode[index] = value;
                 setCode(newCode);
+                setError('');
 
                 // Auto-focus al siguiente input
-                if (value && index < 5) {
+                if (value && index < 3) {
                         inputRefs.current[index + 1]?.focus();
                 }
 
                 // Verificar automáticamente cuando se complete el código
-                if (index === 5 && value) {
+                if (index === 3 && value) {
                         const fullCode = newCode.join('');
-                        if (fullCode.length === 6) {
+                        if (fullCode.length === 4) {
                                 handleVerifyCode(fullCode);
                         }
                 }
@@ -68,32 +70,32 @@ const VerifyCodeScreen = ({ navigation, route }) => {
         const handleVerifyCode = async (codeToVerify) => {
                 const fullCode = codeToVerify || code.join('');
 
-                if (fullCode.length !== 6) {
-                        Alert.alert('Error', 'Por favor ingresa el código completo de 6 dígitos');
+                if (fullCode.length !== 4) {
+                        setError('Por favor ingresa el código completo de 4 dígitos');
                         return;
                 }
 
                 setLoading(true);
+                setError('');
 
                 try {
-                        const result = await verifyCode(identifier, fullCode);
+                        const result = await verifyRecoveryCode(email, fullCode);
 
                         if (result.success) {
                                 // Código verificado, ir a pantalla de nueva contraseña
                                 navigation.navigate('ResetPassword', {
-                                        identifier,
+                                        email,
                                         verifiedCode: fullCode,
-                                        userId: result.userId,
                                 });
                         } else {
-                                Alert.alert('Código Inválido', result.error || 'El código ingresado es incorrecto o ha expirado');
+                                setError(result.error || 'El código ingresado es incorrecto o ha expirado');
                                 // Limpiar código
-                                setCode(['', '', '', '', '', '']);
+                                setCode(['', '', '', '']);
                                 inputRefs.current[0]?.focus();
                         }
                 } catch (error) {
                         console.error('Error verificando código:', error);
-                        Alert.alert('Error', 'Ocurrió un error al verificar el código');
+                        setError('Ocurrió un error al verificar el código');
                 } finally {
                         setLoading(false);
                 }
@@ -103,31 +105,27 @@ const VerifyCodeScreen = ({ navigation, route }) => {
                 if (resendTimer > 0) return;
 
                 setLoading(true);
+                setError('');
 
                 try {
-                        const result = await sendVerificationCode(
-                                isPhone ? identifier : null,
-                                isPhone ? null : identifier
-                        );
+                        const result = await sendRecoveryCode(email);
 
                         if (result.success) {
-                                Alert.alert('Código Reenviado', `Se ha enviado un nuevo código ${isPhone ? 'por SMS' : 'a tu email'}`);
-                                setResendTimer(60);
-                                setCode(['', '', '', '', '', '']);
-                                inputRefs.current[0]?.focus();
+                                // Mostrar código en desarrollo
+                                const devMessage = result.devCode
+                                        ? `\n\n[DESARROLLO] Nuevo código: ${result.devCode}`
+                                        : '';
 
-                                // En desarrollo, mostrar el código
-                                if (result.code && __DEV__) {
-                                        console.log('=================================');
-                                        console.log('NUEVO CÓDIGO (DEV):', result.code);
-                                        console.log('=================================');
-                                }
+                                Alert.alert('Código Reenviado', `Se ha enviado un nuevo código a tu email.${devMessage}`);
+                                setResendTimer(60);
+                                setCode(['', '', '', '']);
+                                inputRefs.current[0]?.focus();
                         } else {
-                                Alert.alert('Error', result.error || 'No se pudo reenviar el código');
+                                setError(result.error || 'No se pudo reenviar el código');
                         }
                 } catch (error) {
                         console.error('Error reenviando código:', error);
-                        Alert.alert('Error', 'Ocurrió un error al reenviar el código');
+                        setError('Ocurrió un error al reenviar el código');
                 } finally {
                         setLoading(false);
                 }
@@ -152,9 +150,17 @@ const VerifyCodeScreen = ({ navigation, route }) => {
                         <View style={styles.content}>
                                 <Text style={styles.title}>Verificación de Código</Text>
                                 <Text style={styles.subtitle}>
-                                        Ingresa el código de 6 dígitos que enviamos a{'\n'}
-                                        <Text style={styles.identifier}>{identifier}</Text>
+                                        Ingresa el código de 4 dígitos que enviamos a{'\n'}
+                                        <Text style={styles.identifier}>{email}</Text>
                                 </Text>
+
+                                {/* Error */}
+                                {error && (
+                                        <View style={styles.errorContainer}>
+                                                <Ionicons name="alert-circle" size={18} color={COLORS.error} />
+                                                <Text style={styles.errorText}>{error}</Text>
+                                        </View>
+                                )}
 
                                 {/* Inputs de código */}
                                 <View style={styles.codeContainer}>
@@ -164,7 +170,8 @@ const VerifyCodeScreen = ({ navigation, route }) => {
                                                         ref={(ref) => (inputRefs.current[index] = ref)}
                                                         style={[
                                                                 styles.codeInput,
-                                                                digit && styles.codeInputFilled
+                                                                digit && styles.codeInputFilled,
+                                                                error && styles.codeInputError
                                                         ]}
                                                         value={digit}
                                                         onChangeText={(value) => handleCodeChange(value, index)}
@@ -180,7 +187,7 @@ const VerifyCodeScreen = ({ navigation, route }) => {
                                 <CustomButton
                                         title={loading ? 'Verificando...' : 'Verificar Código'}
                                         on_press={() => handleVerifyCode()}
-                                        disabled={loading || code.join('').length !== 6}
+                                        disabled={loading || code.join('').length !== 4}
                                 />
 
                                 {/* Reenviar código */}
@@ -256,19 +263,34 @@ const styles = StyleSheet.create({
                 fontWeight: '700',
                 color: COLORS.primary,
         },
+        errorContainer: {
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#FFF5F5',
+                padding: 12,
+                borderRadius: 8,
+                marginBottom: 20,
+                gap: 8,
+        },
+        errorText: {
+                color: COLORS.error,
+                fontSize: 14,
+                fontWeight: '500',
+        },
         codeContainer: {
                 flexDirection: 'row',
                 justifyContent: 'space-between',
                 marginBottom: 30,
-                paddingHorizontal: 10,
+                paddingHorizontal: 20,
         },
         codeInput: {
-                width: 45,
-                height: 55,
+                width: 60,
+                height: 70,
                 borderWidth: 2,
                 borderColor: '#E0E0E0',
-                borderRadius: 12,
-                fontSize: 24,
+                borderRadius: 15,
+                fontSize: 32,
                 fontWeight: 'bold',
                 textAlign: 'center',
                 color: COLORS.textDark,
@@ -277,6 +299,10 @@ const styles = StyleSheet.create({
         codeInputFilled: {
                 borderColor: COLORS.primary,
                 backgroundColor: COLORS.primaryLight,
+        },
+        codeInputError: {
+                borderColor: COLORS.error,
+                backgroundColor: '#FFF5F5',
         },
         resendContainer: {
                 marginTop: 20,

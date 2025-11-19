@@ -35,6 +35,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
                         Home: isFocused ? 'home' : 'home-outline',
                         Categories: isFocused ? 'grid' : 'grid-outline',
                         Favorites: isFocused ? 'heart' : 'heart-outline',
+                        Templates: isFocused ? 'brush' : 'brush-outline',
                         Cart: isFocused ? 'cart' : 'cart-outline',
                 };
                 return icons[routeName] || 'help-outline';

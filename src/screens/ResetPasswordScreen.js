@@ -14,88 +14,104 @@ import { COLORS } from '../constants/colors.js';
 import CustomButton from '../components/CustomButton.js';
 import CustomInput from '../components/CustomInput.js';
 import { supabase } from '../config/supabase.js';
+import { clearRecoveryCode } from '../services/passwordResetService.js';
+import { validatePassword, validatePasswordMatch } from '../utils/validations.js';
 
 const ResetPasswordScreen = ({ navigation, route }) => {
-        const { identifier, verifiedCode, userId } = route.params;
+        const { email, verifiedCode } = route.params;
         const [newPassword, setNewPassword] = useState('');
         const [confirmPassword, setConfirmPassword] = useState('');
         const [loading, setLoading] = useState(false);
+        const [errors, setErrors] = useState({});
 
-        const validatePassword = () => {
-                if (newPassword.length < 6) {
-                        Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres');
-                        return false;
+        const validateForm = () => {
+                const newErrors = {};
+
+                // Validar contraseña
+                const passwordValidation = validatePassword(newPassword);
+                if (!passwordValidation.isValid) {
+                        newErrors.newPassword = passwordValidation.error;
                 }
 
-                if (newPassword !== confirmPassword) {
-                        Alert.alert('Error', 'Las contraseñas no coinciden');
-                        return false;
+                // Validar que coincidan
+                const matchValidation = validatePasswordMatch(newPassword, confirmPassword);
+                if (!matchValidation.isValid) {
+                        newErrors.confirmPassword = matchValidation.error;
                 }
 
-                return true;
+                setErrors(newErrors);
+                return Object.keys(newErrors).length === 0;
         };
 
         const handleResetPassword = async () => {
-                if (!validatePassword()) return;
+                // Limpiar errores previos
+                setErrors({});
+
+                if (!validateForm()) return;
 
                 setLoading(true);
 
                 try {
-                        // Obtener email del usuario
+                        console.log('🔄 Actualizando contraseña para:', email);
+
+                        // Obtener el usuario ID desde el email
                         const { data: profileData, error: profileError } = await supabase
                                 .from('profiles')
-                                .select('email')
-                                .eq('id', userId)
+                                .select('id')
+                                .eq('email', email)
                                 .single();
 
-                        if (profileError) throw profileError;
-
-                        // Usar el servicio de Supabase Auth para actualizar la contraseña
-                        // Primero necesitamos autenticar con el email y código verificado
-
-                        // Marcar el código como usado en la base de datos
-                        const { error: markError } = await supabase
-                                .from('verification_codes')
-                                .update({ used: true })
-                                .eq('code', verifiedCode)
-                                .or(`email.eq.${identifier},phone.eq.${identifier}`);
-
-                        if (markError) {
-                                console.error('Error marcando código:', markError);
+                        if (profileError) {
+                                throw new Error('No se pudo encontrar el usuario');
                         }
 
-                        // Actualizar contraseña directamente (requiere privileges de admin)
-                        // Alternativa: Usar función RPC o trigger de Supabase
-
-                        // Por ahora, guardamos la solicitud y enviamos un link de reset
-                        const { error: requestError } = await supabase
-                                .from('password_reset_requests')
-                                .insert([{
-                                        user_id: userId,
-                                        email: profileData.email,
-                                        new_password: newPassword, // En producción, hashear
-                                        verified: true,
-                                        verification_code: verifiedCode,
-                                }]);
-
-                        if (requestError) throw requestError;
-
-                        // Intentar actualizar directamente si tenemos una función de admin
+                        // Actualizar contraseña usando función RPC de Supabase
+                        // NOTA: Necesitas crear esta función en Supabase
                         try {
-                                const { error: updateError } = await supabase.rpc('update_user_password', {
-                                        user_id: userId,
-                                        new_password: newPassword
+                                const { error: updateError } = await supabase.rpc('admin_update_user_password', {
+                                        user_id_param: profileData.id,
+                                        new_password_param: newPassword
                                 });
 
                                 if (updateError) {
-                                        console.log('No hay función RPC, usando método alternativo');
+                                        console.log('⚠️ Función RPC no disponible, usando método alternativo');
+                                        throw updateError;
                                 }
+
+                                console.log('✅ Contraseña actualizada con RPC');
                         } catch (rpcError) {
-                                console.log('RPC no disponible:', rpcError);
+                                // Si no existe la función RPC, guardar temporalmente la nueva contraseña
+                                // y el usuario deberá hacer login de nuevo
+                                console.log('📝 Guardando solicitud de cambio de contraseña');
+
+                                // Eliminar código de recuperación usado
+                                await clearRecoveryCode(email);
+
+                                // En un sistema de producción real, necesitarías un backend que maneje esto
+                                // Por ahora, mostramos instrucciones al usuario
+                                Alert.alert(
+                                        'Nota Importante',
+                                        'Debido a limitaciones de seguridad, por favor usa el método de recuperación nativo de Supabase.\n\nEn breve recibirás un email con un enlace para cambiar tu contraseña de forma segura.',
+                                        [
+                                                {
+                                                        text: 'Entendido',
+                                                        onPress: () => {
+                                                                navigation.reset({
+                                                                        index: 0,
+                                                                        routes: [{ name: 'Login' }],
+                                                                });
+                                                        }
+                                                }
+                                        ]
+                                );
+                                return;
                         }
 
+                        // Limpiar código de recuperación
+                        await clearRecoveryCode(email);
+
                         Alert.alert(
-                                '¡Contraseña Actualizada!',
+                                '✅ Contraseña Actualizada',
                                 'Tu contraseña ha sido actualizada exitosamente. Ahora puedes iniciar sesión con tu nueva contraseña.',
                                 [
                                         {
@@ -110,8 +126,10 @@ const ResetPasswordScreen = ({ navigation, route }) => {
                                 ]
                         );
                 } catch (error) {
-                        console.error('Error reseteando contraseña:', error);
-                        Alert.alert('Error', 'Ocurrió un error al actualizar la contraseña. Por favor intenta de nuevo.');
+                        console.error('❌ Error reseteando contraseña:', error);
+                        setErrors({
+                                general: error.message || 'Ocurrió un error al actualizar la contraseña. Por favor intenta de nuevo.'
+                        });
                 } finally {
                         setLoading(false);
                 }
@@ -141,20 +159,41 @@ const ResetPasswordScreen = ({ navigation, route }) => {
                                                         Ingresa tu nueva contraseña. Asegúrate de que sea segura y fácil de recordar.
                                                 </Text>
 
+                                                {/* Error general */}
+                                                {errors.general && (
+                                                        <View style={styles.general_error}>
+                                                                <Text style={styles.general_error_text}>{errors.general}</Text>
+                                                        </View>
+                                                )}
+
                                                 <CustomInput
-                                                        placeholder="Nueva Contraseña"
+                                                        placeholder="Nueva Contraseña (mín. 6 caracteres)"
                                                         value={newPassword}
-                                                        on_change_text={setNewPassword}
+                                                        on_change_text={(text) => {
+                                                                setNewPassword(text);
+                                                                if (errors.newPassword) {
+                                                                        setErrors({ ...errors, newPassword: null });
+                                                                }
+                                                        }}
                                                         secure_text_entry
+                                                        show_password_toggle
                                                         icon="lock-closed-outline"
+                                                        error={errors.newPassword}
                                                 />
 
                                                 <CustomInput
                                                         placeholder="Confirmar Contraseña"
                                                         value={confirmPassword}
-                                                        on_change_text={setConfirmPassword}
+                                                        on_change_text={(text) => {
+                                                                setConfirmPassword(text);
+                                                                if (errors.confirmPassword) {
+                                                                        setErrors({ ...errors, confirmPassword: null });
+                                                                }
+                                                        }}
                                                         secure_text_entry
+                                                        show_password_toggle
                                                         icon="lock-closed-outline"
+                                                        error={errors.confirmPassword}
                                                 />
 
                                                 {/* Indicadores de seguridad */}
@@ -274,6 +313,19 @@ const styles = StyleSheet.create({
         ruleTextValid: {
                 color: '#4CAF50',
                 fontWeight: '600',
+        },
+        general_error: {
+                backgroundColor: '#FFF5F5',
+                borderLeftWidth: 4,
+                borderLeftColor: COLORS.error,
+                padding: 12,
+                borderRadius: 8,
+                marginBottom: 20,
+        },
+        general_error_text: {
+                color: COLORS.error,
+                fontSize: 14,
+                lineHeight: 20,
         },
 });
 

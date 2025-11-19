@@ -14,51 +14,64 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors.js';
 import CustomButton from '../components/CustomButton.js';
 import CustomInput from '../components/CustomInput.js';
-import { sendPasswordResetEmail } from '../services/emailService.js';
+import { sendRecoveryCode } from '../services/passwordResetService.js';
 import { validateEmail } from '../utils/validations.js';
 
 const ForgotPasswordScreen = ({ navigation }) => {
         const [email, setEmail] = useState('');
         const [loading, setLoading] = useState(false);
+        const [errors, setErrors] = useState({});
 
         const handleSendCode = async () => {
+                // Limpiar errores previos
+                setErrors({});
+
                 if (!email.trim()) {
-                        Alert.alert('Error', 'Por favor ingresa tu email');
+                        setErrors({ email: 'Por favor ingresa tu email' });
                         return;
                 }
 
                 // Validar formato de email usando la función de validación
                 const emailValidation = validateEmail(email.trim());
                 if (!emailValidation.isValid) {
-                        Alert.alert('Error', emailValidation.error);
+                        setErrors({ email: emailValidation.error });
                         return;
                 }
 
                 setLoading(true);
 
                 try {
-                        // Enviar email de reset con Supabase
-                        const result = await sendPasswordResetEmail(email.trim());
+                        // Enviar código de 4 dígitos
+                        const result = await sendRecoveryCode(email.trim());
 
                         if (result.success) {
+                                // Mostrar código en desarrollo para facilitar pruebas
+                                const devMessage = result.devCode
+                                        ? `\n\n[DESARROLLO] Tu código es: ${result.devCode}`
+                                        : '';
+
                                 Alert.alert(
-                                        '✅ Email Enviado',
-                                        'Te hemos enviado un email con un enlace para restablecer tu contraseña. Revisa tu bandeja de entrada.',
+                                        '✅ Código Enviado',
+                                        `Te hemos enviado un código de 4 dígitos a tu email. Por favor revisa tu bandeja de entrada.${devMessage}`,
                                         [
                                                 {
                                                         text: 'OK',
                                                         onPress: () => {
-                                                                navigation.navigate('Login');
+                                                                // Navegar a pantalla de verificación de código
+                                                                navigation.navigate('VerifyCode', {
+                                                                        email: email.trim(),
+                                                                        devCode: result.devCode // Solo en desarrollo
+                                                                });
                                                         }
                                                 }
                                         ]
                                 );
                         } else {
-                                Alert.alert('Error', result.error || 'No se pudo enviar el email de recuperación');
+                                setErrors({ general: result.error || 'No se pudo enviar el código de recuperación' });
                         }
                 } catch (error) {
-                        console.error('Error enviando email:', error);
-                        Alert.alert('Error', 'Ocurrió un error al enviar el email. Verifica tu conexión.');
+                        console.error('Error enviando código:', error);
+                        setErrors({ general: 'Ocurrió un error al enviar el código. Verifica tu conexión.' });
                 } finally {
                         setLoading(false);
                 }
@@ -88,20 +101,33 @@ const ForgotPasswordScreen = ({ navigation }) => {
                                         <View style={styles.content}>
                                                 <Text style={styles.title}>¿Olvidaste tu contraseña?</Text>
                                                 <Text style={styles.subtitle}>
-                                                        Ingresa tu email y te enviaremos un enlace seguro para restablecer tu contraseña
+                                                        Ingresa tu email y te enviaremos un código de 4 dígitos para restablecer tu contraseña
                                                 </Text>
 
+                                                {/* Error general */}
+                                                {errors.general && (
+                                                        <View style={styles.general_error}>
+                                                                <Text style={styles.general_error_text}>{errors.general}</Text>
+                                                        </View>
+                                                )}
+
                                                 <CustomInput
-                                                        placeholder="Email (Gmail, Outlook, Yahoo o Hotmail)"
+                                                        placeholder="Email (personal o institucional)"
                                                         value={email}
-                                                        on_change_text={setEmail}
+                                                        on_change_text={(text) => {
+                                                                setEmail(text);
+                                                                if (errors.email) {
+                                                                        setErrors({ ...errors, email: null });
+                                                                }
+                                                        }}
                                                         keyboard_type="email-address"
                                                         icon="mail-outline"
                                                         autoCapitalize="none"
+                                                        error={errors.email}
                                                 />
 
                                                 <CustomButton
-                                                        title={loading ? 'Enviando...' : 'Enviar Email de Recuperación'}
+                                                        title={loading ? 'Enviando...' : 'Enviar Código de Recuperación'}
                                                         on_press={handleSendCode}
                                                         disabled={loading}
                                                 />
@@ -180,6 +206,19 @@ const styles = StyleSheet.create({
                 fontSize: 14,
                 color: COLORS.primary,
                 fontWeight: '600',
+        },
+        general_error: {
+                backgroundColor: '#FFF5F5',
+                borderLeftWidth: 4,
+                borderLeftColor: COLORS.error,
+                padding: 12,
+                borderRadius: 8,
+                marginBottom: 20,
+        },
+        general_error_text: {
+                color: COLORS.error,
+                fontSize: 14,
+                lineHeight: 20,
         },
 });
 

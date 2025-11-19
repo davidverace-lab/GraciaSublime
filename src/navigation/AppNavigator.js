@@ -124,7 +124,7 @@ const AdminTabs = () => {
                     } else if (route.name === 'AdminCategories') {
                         iconName = focused ? 'grid' : 'grid-outline';
                     } else if (route.name === 'AdminTemplates') {
-                        iconName = focused ? 'color-palette' : 'color-palette-outline';
+                        iconName = focused ? 'brush' : 'brush-outline';
                     } else if (route.name === 'AdminUsers') {
                         iconName = focused ? 'people' : 'people-outline';
                     }

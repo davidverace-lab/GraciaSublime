@@ -4,21 +4,42 @@
 
 /**
  * Valida que un email tenga el formato correcto
- * Requisitos: debe tener @, punto después del @, y terminar en .com
- * Solo acepta dominios: gmail.com, outlook.com, yahoo.com, hotmail.com
+ * Acepta cualquier email válido incluyendo:
+ * - Correos personales (Gmail, Outlook, Yahoo, Hotmail, etc.)
+ * - Correos institucionales (universidad.edu, empresa.com, etc.)
+ * - Correos gubernamentales (.gob, .gov, etc.)
  */
 export const validateEmail = (email) => {
         const trimmedEmail = email.trim();
+
+        // Verificar que no esté vacío
+        if (!trimmedEmail) {
+                return { isValid: false, error: 'El email no puede estar vacío' };
+        }
 
         // Verificar que tenga @
         if (!trimmedEmail.includes('@')) {
                 return { isValid: false, error: 'El email debe contener @' };
         }
 
+        // Separar en parte local y dominio
+        const parts = trimmedEmail.split('@');
+
+        // Verificar que solo haya un @
+        if (parts.length !== 2) {
+                return { isValid: false, error: 'El email debe tener exactamente un @' };
+        }
+
+        const [localPart, domainPart] = parts;
+
         // Verificar que tenga algo antes del @
-        const [localPart, domainPart] = trimmedEmail.split('@');
         if (!localPart || localPart.length === 0) {
                 return { isValid: false, error: 'El email debe tener texto antes del @' };
+        }
+
+        // Verificar longitud mínima de parte local
+        if (localPart.length < 1) {
+                return { isValid: false, error: 'El email debe tener al menos un caracter antes del @' };
         }
 
         // Verificar que tenga dominio después del @
@@ -26,30 +47,50 @@ export const validateEmail = (email) => {
                 return { isValid: false, error: 'El email debe tener un dominio después del @' };
         }
 
-        // Verificar que el dominio tenga un punto
+        // Verificar que el dominio tenga al menos un punto
         if (!domainPart.includes('.')) {
-                return { isValid: false, error: 'El email debe tener un punto en el dominio (ej: @gmail.com)' };
+                return { isValid: false, error: 'El dominio debe contener al menos un punto (ej: @gmail.com, @universidad.edu)' };
         }
 
-        // Dominios permitidos
-        const allowedDomains = ['gmail.com', 'outlook.com', 'yahoo.com', 'hotmail.com'];
-        const emailLower = trimmedEmail.toLowerCase();
-
-        // Verificar que el email termine con uno de los dominios permitidos
-        const isValidDomain = allowedDomains.some(domain => emailLower.endsWith('@' + domain));
-
-        if (!isValidDomain) {
-                return {
-                        isValid: false,
-                        error: 'Solo se aceptan correos de Gmail, Outlook, Yahoo o Hotmail'
-                };
-        }
-
-        // Validación adicional: verificar que haya algo después del punto
+        // Verificar estructura del dominio
         const domainParts = domainPart.split('.');
-        const lastPart = domainParts[domainParts.length - 1];
-        if (lastPart.length < 2) {
-                return { isValid: false, error: 'El dominio del email no es válido' };
+
+        // Debe tener al menos 2 partes (ejemplo.com)
+        if (domainParts.length < 2) {
+                return { isValid: false, error: 'El dominio no es válido' };
+        }
+
+        // Verificar que cada parte del dominio no esté vacía
+        for (const part of domainParts) {
+                if (!part || part.length === 0) {
+                        return { isValid: false, error: 'El dominio no es válido' };
+                }
+        }
+
+        // La última parte (TLD) debe tener al menos 2 caracteres
+        const tld = domainParts[domainParts.length - 1];
+        if (tld.length < 2) {
+                return { isValid: false, error: 'La extensión del dominio debe tener al menos 2 caracteres' };
+        }
+
+        // Validar caracteres permitidos en la parte local (antes del @)
+        // Permite letras, números, puntos, guiones, guiones bajos
+        const localPartRegex = /^[a-zA-Z0-9._-]+$/;
+        if (!localPartRegex.test(localPart)) {
+                return { isValid: false, error: 'El email contiene caracteres no permitidos' };
+        }
+
+        // Validar caracteres en el dominio
+        // Permite letras, números, puntos y guiones
+        const domainRegex = /^[a-zA-Z0-9.-]+$/;
+        if (!domainRegex.test(domainPart)) {
+                return { isValid: false, error: 'El dominio contiene caracteres no permitidos' };
+        }
+
+        // Regex completo para email válido (RFC 5322 simplificado)
+        const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        if (!emailRegex.test(trimmedEmail)) {
+                return { isValid: false, error: 'El formato del email no es válido' };
         }
 
         return { isValid: true, error: null };

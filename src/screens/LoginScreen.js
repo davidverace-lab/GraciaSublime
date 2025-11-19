@@ -137,7 +137,7 @@ const LoginScreen = ({ navigation }) => {
                                                 )}
 
                                                 <CustomInput
-                                                        placeholder="Email (Gmail, Outlook, Yahoo, Hotmail) o Teléfono"
+                                                        placeholder="Email o Teléfono"
                                                         value={email_or_phone}
                                                         on_change_text={(text) => {
                                                                 set_email_or_phone(text);

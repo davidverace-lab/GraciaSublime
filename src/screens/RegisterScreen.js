@@ -94,7 +94,7 @@ const RegisterScreen = ({ navigation }) => {
 
                                         // Agregar notificación de bienvenida después de navegar
                                         setTimeout(() => {
-                                                add_notification(`¡Bienvenido a Gracia Sublime, ${full_name}! 🎉 Tu cuenta ha sido creada exitosamente. Disfruta de nuestra tienda.`).catch(err => {
+                                                add_notification(`¡Bienvenido a Gracia Sublime, ${full_name}! 🎉 Tu cuenta ha sido creada exitosamente.\n\n📧 Hemos enviado un correo de verificación a ${email}. Por favor revisa tu bandeja de entrada para confirmar tu cuenta.`).catch(err => {
                                                         console.log('No se pudo agregar notificación de bienvenida:', err);
                                                 });
                                         }, 1000);
@@ -157,7 +157,7 @@ const RegisterScreen = ({ navigation }) => {
                                                 />
 
                                                 <CustomInput
-                                                        placeholder="Email (Gmail, Outlook, Yahoo o Hotmail)"
+                                                        placeholder="Email (personal o institucional)"
                                                         value={email}
                                                         on_change_text={(text) => {
                                                                 set_email(text);

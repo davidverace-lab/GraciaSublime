@@ -8,13 +8,55 @@ import { supabase } from '../config/supabase';
 // Registrar nuevo usuario
 export const signUp = async (email, password, name, phone) => {
   try {
-    // Normalizar email
+    // Normalizar email y teléfono
     const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone.trim();
 
-    // 1. Crear usuario en auth.users
+    // 1. Verificar si el email ya existe en la base de datos
+    const { data: existingEmailUser, error: emailCheckError } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('email', normalizedEmail)
+      .single();
+
+    if (existingEmailUser) {
+      return {
+        data: null,
+        error: {
+          message: 'Este correo electrónico ya está registrado. Por favor usa otro email o inicia sesión.'
+        }
+      };
+    }
+
+    // 2. Verificar si el teléfono ya existe en la base de datos
+    const { data: existingPhoneUser, error: phoneCheckError } = await supabase
+      .from('profiles')
+      .select('phone')
+      .eq('phone', normalizedPhone)
+      .single();
+
+    if (existingPhoneUser) {
+      return {
+        data: null,
+        error: {
+          message: 'Este número de teléfono ya está registrado. Por favor usa otro teléfono.'
+        }
+      };
+    }
+
+    // 3. Crear usuario en auth.users
+    // Supabase enviará automáticamente un email de verificación
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
+      options: {
+        // Configurar email de verificación
+        emailRedirectTo: 'gracasublime://verify-email',
+        data: {
+          name: name,
+          phone: normalizedPhone,
+        }
+      }
     });
 
     if (authError) {
@@ -22,14 +64,17 @@ export const signUp = async (email, password, name, phone) => {
       if (authError.message.includes('already registered')) {
         authError.message = 'Este email ya está registrado. Por favor inicia sesión o usa otro email.';
       }
+      if (authError.message.includes('User already registered')) {
+        authError.message = 'Este email ya está registrado. Por favor inicia sesión.';
+      }
       throw authError;
     }
 
-    // 2. Actualizar perfil con información adicional
+    // 4. Actualizar perfil con información adicional
     if (authData.user) {
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({ name, phone })
+        .update({ name, phone: normalizedPhone })
         .eq('id', authData.user.id);
 
       if (profileError) {
@@ -37,6 +82,8 @@ export const signUp = async (email, password, name, phone) => {
         // No lanzar error aquí, el usuario ya fue creado
       }
     }
+
+    console.log('✅ Usuario registrado. Email de verificación enviado a:', normalizedEmail);
 
     return { data: authData, error: null };
   } catch (error) {
