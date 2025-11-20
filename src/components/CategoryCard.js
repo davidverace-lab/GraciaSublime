@@ -51,6 +51,9 @@ const CategoryCard = ({ category, onPress, index }) => {
             friction: 3,
             useNativeDriver: true,
         }).start();
+    };
+
+    const handlePress = () => {
         onPress();
     };
 
@@ -58,7 +61,9 @@ const CategoryCard = ({ category, onPress, index }) => {
         <TouchableOpacity
             onPressIn={handlePressIn}
             onPressOut={handlePressOut}
-            activeOpacity={1}
+            onPress={handlePress}
+            activeOpacity={0.8}
+            delayPressIn={0}
         >
             <Animated.View
                 style={[
@@ -74,7 +79,7 @@ const CategoryCard = ({ category, onPress, index }) => {
             >
                 {/* Imagen de fondo */}
                 <Image
-                    source={category.image}
+                    source={category.image_url ? { uri: category.image_url } : category.image}
                     style={styles.backgroundImage}
                     resizeMode="cover"
                 />

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -10,9 +10,17 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors.js';
 import { useOrders } from '../context/OrdersContext.js';
+import { hasUserReviewedOrder } from '../services/reviewsService.js';
+import { useAuth } from '../context/AuthContext.js';
+import { addToCart } from '../services/cartService.js';
+import { useCart } from '../context/CartContext.js';
 
 const OrderHistoryScreen = ({ navigation }) => {
     const { orders } = useOrders();
+    const { user } = useAuth();
+    const { reload_cart } = useCart();
+    const [reviewedOrders, setReviewedOrders] = useState({});
+    const [reorderingOrder, setReorderingOrder] = useState(null);
 
     const formatDate = (dateString) => {
         const date = new Date(dateString);
@@ -24,15 +32,126 @@ const OrderHistoryScreen = ({ navigation }) => {
     };
 
     const getStatusColor = (status) => {
-        switch (status) {
-            case 'Completado':
+        const normalizedStatus = status?.toLowerCase();
+        switch (normalizedStatus) {
+            case 'completado':
+            case 'entregado':
+            case 'delivered':
                 return '#4CAF50';
-            case 'En proceso':
+            case 'en proceso':
+            case 'en_proceso':
+            case 'processing':
+            case 'en camino':
+            case 'enviado':
+            case 'shipped':
                 return '#FF9800';
-            case 'Cancelado':
+            case 'pago_pendiente':
+            case 'pago pendiente':
+            case 'pending_payment':
+                return '#9C27B0';
+            case 'pendiente':
+            case 'pending':
+                return '#2196F3';
+            case 'cancelado':
+            case 'cancelled':
                 return '#F44336';
             default:
                 return '#999';
+        }
+    };
+
+    const getStatusLabel = (status) => {
+        const normalizedStatus = status?.toLowerCase();
+        const statusLabels = {
+            'pending': 'Pendiente',
+            'pendiente': 'Pendiente',
+            'pago_pendiente': 'Pago Pendiente',
+            'pago pendiente': 'Pago Pendiente',
+            'pending_payment': 'Pago Pendiente',
+            'processing': 'En Proceso',
+            'en_proceso': 'En Proceso',
+            'en proceso': 'En Proceso',
+            'shipped': 'En Camino',
+            'enviado': 'En Camino',
+            'en camino': 'En Camino',
+            'delivered': 'Entregado',
+            'entregado': 'Entregado',
+            'completado': 'Completado',
+            'cancelled': 'Cancelado',
+            'cancelado': 'Cancelado',
+        };
+        return statusLabels[normalizedStatus] || status;
+    };
+
+    // Verificar qué pedidos ya tienen reseña
+    useEffect(() => {
+        const checkReviews = async () => {
+            if (!user || orders.length === 0) return;
+
+            const reviewStatus = {};
+            for (const order of orders) {
+                const { hasReviewed } = await hasUserReviewedOrder(user.id, order.order_id || order.id);
+                reviewStatus[order.order_id || order.id] = hasReviewed;
+            }
+            setReviewedOrders(reviewStatus);
+        };
+
+        checkReviews();
+    }, [orders, user]);
+
+    // Verificar si el pedido está completado y puede recibir reseña
+    const canReview = (order) => {
+        const normalizedStatus = order.status?.toLowerCase();
+        return (
+            normalizedStatus === 'completado' ||
+            normalizedStatus === 'entregado' ||
+            normalizedStatus === 'delivered'
+        );
+    };
+
+    const handleWriteReview = (order) => {
+        navigation.navigate('WriteReview', { order });
+    };
+
+    const handleReorder = async (order) => {
+        try {
+            setReorderingOrder(order.id);
+
+            // Agregar cada producto del pedido al carrito
+            const addPromises = order.items.map(async (item) => {
+                return await addToCart(
+                    user.id,
+                    item.product.product_id,
+                    item.quantity,
+                    item.variant_id || null,
+                    item.custom_image || item.custom_design ? {
+                        custom_image: item.custom_image,
+                        custom_design: item.custom_design,
+                        design_name: item.design_name
+                    } : null
+                );
+            });
+
+            const results = await Promise.all(addPromises);
+
+            // Verificar si hubo errores
+            const hasError = results.some(result => result.error);
+
+            if (hasError) {
+                throw new Error('Error al agregar algunos productos');
+            }
+
+            // Actualizar el carrito
+            await reload_cart();
+
+            // Mostrar mensaje de éxito
+            alert('¡Productos agregados al carrito! Puedes continuar comprando o ir al carrito para finalizar tu pedido.');
+
+        } catch (error) {
+            console.error('Error al volver a comprar:', error);
+            alert('Error al agregar los productos al carrito. Por favor intenta de nuevo.');
+        } finally {
+            setReorderingOrder(null);
         }
     };
 
@@ -67,7 +186,7 @@ const OrderHistoryScreen = ({ navigation }) => {
                                     <Text style={styles.orderDate}>{formatDate(item.date)}</Text>
                                 </View>
                                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-                                    <Text style={styles.statusText}>{item.status}</Text>
+                                    <Text style={styles.statusText}>{getStatusLabel(item.status)}</Text>
                                 </View>
                             </View>
 
@@ -96,6 +215,52 @@ const OrderHistoryScreen = ({ navigation }) => {
                                 <Text style={styles.totalLabel}>Total:</Text>
                                 <Text style={styles.totalAmount}>${item.total}</Text>
                             </View>
+
+                            {/* Botón de volver a comprar */}
+                            <View style={styles.reorderSection}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.reorderButton,
+                                        reorderingOrder === item.id && styles.reorderButtonDisabled
+                                    ]}
+                                    onPress={() => handleReorder(item)}
+                                    disabled={reorderingOrder === item.id}
+                                    activeOpacity={0.7}
+                                >
+                                    {reorderingOrder === item.id ? (
+                                        <>
+                                            <Ionicons name="hourglass-outline" size={20} color={COLORS.white} />
+                                            <Text style={styles.reorderButtonText}>Agregando...</Text>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Ionicons name="cart-outline" size={20} color={COLORS.white} />
+                                            <Text style={styles.reorderButtonText}>Volver a comprar</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Botón de reseña si el pedido está completado */}
+                            {canReview(item) && (
+                                <View style={styles.reviewSection}>
+                                    {reviewedOrders[item.order_id || item.id] ? (
+                                        <View style={styles.reviewedBadge}>
+                                            <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                                            <Text style={styles.reviewedText}>Ya reseñaste este pedido</Text>
+                                        </View>
+                                    ) : (
+                                        <TouchableOpacity
+                                            style={styles.reviewButton}
+                                            onPress={() => handleWriteReview(item)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Ionicons name="star" size={20} color={COLORS.white} />
+                                            <Text style={styles.reviewButtonText}>Escribir Reseña</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            )}
                         </View>
                     )}
                     keyExtractor={(item) => item.id}
@@ -249,6 +414,64 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: '#666',
         textAlign: 'center',
+    },
+    reorderSection: {
+        marginTop: 15,
+    },
+    reorderButton: {
+        backgroundColor: COLORS.secondary || '#6C63FF',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 12,
+        gap: 8,
+    },
+    reorderButtonDisabled: {
+        backgroundColor: '#999',
+        opacity: 0.7,
+    },
+    reorderButtonText: {
+        color: COLORS.white,
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    reviewSection: {
+        marginTop: 15,
+        paddingTop: 15,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.inputGray,
+    },
+    reviewButton: {
+        backgroundColor: COLORS.primary,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 12,
+        gap: 8,
+    },
+    reviewButtonText: {
+        color: COLORS.white,
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    reviewedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        backgroundColor: '#E8F5E9',
+        borderRadius: 12,
+        gap: 8,
+    },
+    reviewedText: {
+        color: '#4CAF50',
+        fontSize: 14,
+        fontWeight: '600',
     },
 });
 

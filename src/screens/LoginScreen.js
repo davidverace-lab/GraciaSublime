@@ -163,6 +163,7 @@ const LoginScreen = ({ navigation }) => {
                                                         secureTextEntry={true}
                                                         error={errors.password}
                                                         icon="lock-closed-outline"
+                                                        showPasswordToggle={true}
                                                 />
 
                                                 <CustomButton

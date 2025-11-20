@@ -15,6 +15,7 @@ const CustomInput = ({
         icon = null,
         max_length = null,
         editable = true,
+        autoCapitalize = 'none',
         ...props
 }) => {
         const [is_password_visible, set_is_password_visible] = useState(false);
@@ -57,7 +58,8 @@ const CustomInput = ({
                                         onChangeText={on_change_text}
                                         secureTextEntry={secure_text_entry && !is_password_visible}
                                         keyboardType={keyboard_type}
-                                        autoCapitalize="none"
+                                        autoCapitalize={autoCapitalize}
+                                        autoCorrect={false}
                                         returnKeyType="done"
                                         blurOnSubmit={true}
                                         maxLength={max_length}

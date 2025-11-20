@@ -90,7 +90,7 @@ export const getOrderById = async (orderId) => {
 };
 
 // Crear nuevo pedido
-export const createOrder = async (userId, addressId, cartItems, totalPrice) => {
+export const createOrder = async (userId, addressId, cartItems, totalPrice, paymentMethod = 'paypal', status = 'pendiente', paymentProof = null) => {
   try {
     // 1. Crear el pedido
     const { data: order, error: orderError } = await supabase
@@ -98,20 +98,53 @@ export const createOrder = async (userId, addressId, cartItems, totalPrice) => {
       .insert([{
         user_id: userId,
         address_id: addressId,
-        status: 'pendiente',
+        status: status,
         total_price: totalPrice,
+        payment_method: paymentMethod,
       }])
       .select()
       .single();
 
     if (orderError) throw orderError;
 
-    // 2. Crear los items del pedido
+    // 2. Si hay comprobante de pago (transferencia), guardarlo
+    if (paymentProof && paymentMethod === 'transferencia') {
+      const fileName = `payment_proofs/${order.order_id}_${Date.now()}.jpg`;
+
+      // Convertir la URI a blob para subir
+      const response = await fetch(paymentProof);
+      const blob = await response.blob();
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('payment-proofs')
+        .upload(fileName, blob, {
+          contentType: 'image/jpeg',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Error subiendo comprobante:', uploadError);
+      } else {
+        // Actualizar la orden con la URL del comprobante
+        const { data: { publicUrl } } = supabase.storage
+          .from('payment-proofs')
+          .getPublicUrl(fileName);
+
+        await supabase
+          .from('orders')
+          .update({ payment_proof_url: publicUrl })
+          .eq('order_id', order.order_id);
+      }
+    }
+
+    // 3. Crear los items del pedido con personalización
     const orderItems = cartItems.map(item => ({
       order_id: order.order_id,
       product_id: item.product_id,
       quantity: item.quantity,
       price: item.products.price,
+      customization: item.customization || null,
+      variant_id: item.variant_id || null,
     }));
 
     const { error: itemsError } = await supabase
@@ -120,7 +153,7 @@ export const createOrder = async (userId, addressId, cartItems, totalPrice) => {
 
     if (itemsError) throw itemsError;
 
-    // 3. Limpiar el carrito
+    // 4. Limpiar el carrito
     const { error: clearError } = await supabase
       .from('cart_items')
       .delete()

@@ -204,6 +204,9 @@ const CategoryCardWithImage = ({ category, index, onPress }) => {
             friction: 3,
             useNativeDriver: true,
         }).start();
+    };
+
+    const handlePress = () => {
         onPress();
     };
 
@@ -211,7 +214,9 @@ const CategoryCardWithImage = ({ category, index, onPress }) => {
         <TouchableOpacity
             onPressIn={handlePressIn}
             onPressOut={handlePressOut}
-            activeOpacity={1}
+            onPress={handlePress}
+            activeOpacity={0.8}
+            delayPressIn={0}
             style={styles.categoryCardContainer}
         >
             <Animated.View
@@ -228,7 +233,7 @@ const CategoryCardWithImage = ({ category, index, onPress }) => {
             >
                 {/* Imagen de fondo */}
                 <Image
-                    source={category.image}
+                    source={category.image_url ? { uri: category.image_url } : category.image}
                     style={styles.categoryBackgroundImage}
                     resizeMode="cover"
                 />

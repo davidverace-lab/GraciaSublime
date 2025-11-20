@@ -30,7 +30,10 @@ import CheckoutAddressScreen from '../screens/CheckoutAddressScreen.js';
 import CheckoutPaymentScreen from '../screens/CheckoutPaymentScreen.js';
 import CheckoutConfirmationScreen from '../screens/CheckoutConfirmationScreen.js';
 import OrderSuccessScreen from '../screens/OrderSuccessScreen.js';
+import BankTransferScreen from '../screens/BankTransferScreen.js';
+import TransferPendingScreen from '../screens/TransferPendingScreen.js';
 import PredesignedTemplatesScreen from '../screens/PredesignedTemplatesScreen.js';
+import WriteReviewScreen from '../screens/WriteReviewScreen.js';
 
 // Admin Screens
 import AdminLoginScreen from '../screens/AdminLoginScreen.js';
@@ -316,6 +319,24 @@ const AppNavigator = () => {
                 }}
             />
             <Stack.Screen
+                name="BankTransferScreen"
+                component={BankTransferScreen}
+                options={{
+                    presentation: 'card',
+                    animation: 'slide_from_right',
+                    animationDuration: 350,
+                }}
+            />
+            <Stack.Screen
+                name="TransferPendingScreen"
+                component={TransferPendingScreen}
+                options={{
+                    presentation: 'transparentModal',
+                    animation: 'fade_from_bottom',
+                    animationDuration: 400,
+                }}
+            />
+            <Stack.Screen
                 name="OrderSuccess"
                 component={OrderSuccessScreen}
                 options={{
@@ -327,6 +348,15 @@ const AppNavigator = () => {
             <Stack.Screen
                 name="PredesignedTemplates"
                 component={PredesignedTemplatesScreen}
+                options={{
+                    presentation: 'card',
+                    animation: 'slide_from_right',
+                    animationDuration: 300,
+                }}
+            />
+            <Stack.Screen
+                name="WriteReview"
+                component={WriteReviewScreen}
                 options={{
                     presentation: 'card',
                     animation: 'slide_from_right',

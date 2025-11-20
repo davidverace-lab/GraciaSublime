@@ -48,7 +48,14 @@
       "eas": {
         "projectId": "c16985d1-4502-4280-9161-fe07895d23ab"
       },
-      "RESEND_API_KEY": "re_bYW9HgbQ_JEtuvn8GeJEpeRbhsuCbjU59"
+      "RESEND_API_KEY": "re_bYW9HgbQ_JEtuvn8GeJEpeRbhsuCbjU59",
+      "EMAILJS_SERVICE_ID": "service_1cqkwt9",
+      "EMAILJS_TEMPLATE_ID": "template_w64swso",
+      "EMAILJS_PUBLIC_KEY": "0GEWU_olXFLxsXNG5",
+      "EMAILJS_PRIVATE_KEY": "36Mxyc8Foc6eaMIKdmhCP",
+      "PAYPAL_CLIENT_ID": "AXXjQ7YTfKtwTIQ4pZT4m9UebUauEo_DYwBr5tEbvlX_WEl3pyMvGbd0lQfPt1GMFU9_ELKJq7XLFSTH",
+      "PAYPAL_SECRET_KEY": "EAh4Ba-zxqvVaUZigYFKX-eXLIsbLpH9MkqplL9cAwbvSLYfSO6FPat4oVI6mtZJ9NBHfdqzX07_QgFZ",
+      "PAYPAL_MODE": "sandbox"
     }
   }
 }
