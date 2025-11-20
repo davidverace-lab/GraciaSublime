@@ -25,9 +25,10 @@ const CustomDrawerContent = (props) => {
                                         style: 'destructive',
                                         onPress: async () => {
                                                 await logout();
+                                                // Navegar directamente a Login y limpiar stack
                                                 props.navigation.reset({
                                                         index: 0,
-                                                        routes: [{ name: 'Splash' }],
+                                                        routes: [{ name: 'Login' }],
                                                 });
                                         },
                                 },

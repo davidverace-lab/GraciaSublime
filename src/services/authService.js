@@ -17,7 +17,7 @@ export const signUp = async (email, password, name, phone) => {
       .from('profiles')
       .select('email')
       .eq('email', normalizedEmail)
-      .single();
+      .maybeSingle();
 
     if (existingEmailUser) {
       return {
@@ -33,7 +33,7 @@ export const signUp = async (email, password, name, phone) => {
       .from('profiles')
       .select('phone')
       .eq('phone', normalizedPhone)
-      .single();
+      .maybeSingle();
 
     if (existingPhoneUser) {
       return {
@@ -114,7 +114,7 @@ export const signIn = async (emailOrPhone, password) => {
         .from('profiles')
         .select('email')
         .eq('phone', identifier)
-        .single();
+        .maybeSingle();
 
       if (profileError || !profileData?.email) {
         throw new Error('No se encontró una cuenta con ese número de teléfono.');
@@ -189,7 +189,7 @@ export const getUserProfile = async (userId) => {
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
     return { data, error: null };
@@ -207,7 +207,7 @@ export const updateUserProfile = async (userId, updates) => {
       .update(updates)
       .eq('id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
     return { data, error: null };

@@ -8,13 +8,11 @@ import {
         Platform,
         ScrollView,
         Image,
-        TouchableWithoutFeedback,
-        Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors.js';
 import CustomButton from '../components/CustomButton.js';
-import CustomInput from '../components/CustomInput.js';
+import SimpleInput from '../components/SimpleInput.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useNotifications } from '../context/NotificationsContext.js';
 import { validateEmail, validatePhone, validatePassword, validateName, validatePasswordMatch } from '../utils/validations.js';
@@ -118,11 +116,14 @@ const RegisterScreen = ({ navigation }) => {
         return (
                 <SafeAreaView style={styles.container}>
                         <KeyboardAvoidingView
-                                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                                 style={styles.keyboard_view}
+                                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
                         >
-                                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                                        <ScrollView contentContainerStyle={styles.scroll_content}>
+                                <ScrollView
+                                        contentContainerStyle={styles.scroll_content}
+                                        keyboardShouldPersistTaps="handled"
+                                >
                                         {/* Header con imagen de tazas */}
                                         <View style={styles.header}>
                                                 <Image
@@ -134,7 +135,7 @@ const RegisterScreen = ({ navigation }) => {
 
                                         {/* Contenido */}
                                         <View style={styles.content}>
-                                                <Text style={styles.title}>LETS GET STARTED</Text>
+                                                <Text style={styles.title}>CREAR CUENTA</Text>
 
                                                 {/* Error general */}
                                                 {errors.general && (
@@ -143,10 +144,10 @@ const RegisterScreen = ({ navigation }) => {
                                                         </View>
                                                 )}
 
-                                                <CustomInput
+                                                <SimpleInput
                                                         placeholder="Nombre Completo"
                                                         value={full_name}
-                                                        on_change_text={(text) => {
+                                                        onChangeText={(text) => {
                                                                 set_full_name(text);
                                                                 if (errors.full_name) {
                                                                         set_errors({ ...errors, full_name: null });
@@ -156,63 +157,59 @@ const RegisterScreen = ({ navigation }) => {
                                                         icon="person-outline"
                                                 />
 
-                                                <CustomInput
+                                                <SimpleInput
                                                         placeholder="Email (personal o institucional)"
                                                         value={email}
-                                                        on_change_text={(text) => {
+                                                        onChangeText={(text) => {
                                                                 set_email(text);
                                                                 if (errors.email) {
                                                                         set_errors({ ...errors, email: null });
                                                                 }
                                                         }}
-                                                        keyboard_type="email-address"
+                                                        keyboardType="email-address"
                                                         error={errors.email}
                                                         icon="mail-outline"
                                                 />
 
-                                                <CustomInput
+                                                <SimpleInput
                                                         placeholder="Teléfono (10 dígitos)"
                                                         value={phone}
-                                                        on_change_text={(text) => {
-                                                                // Solo permitir números
+                                                        onChangeText={(text) => {
                                                                 const cleaned = text.replace(/[^0-9]/g, '');
                                                                 set_phone(cleaned);
                                                                 if (errors.phone) {
                                                                         set_errors({ ...errors, phone: null });
                                                                 }
                                                         }}
-                                                        keyboard_type="phone-pad"
-                                                        max_length={10}
+                                                        keyboardType="phone-pad"
                                                         error={errors.phone}
                                                         icon="call-outline"
                                                 />
 
-                                                <CustomInput
+                                                <SimpleInput
                                                         placeholder="Contraseña (mín. 6 caracteres)"
                                                         value={password}
-                                                        on_change_text={(text) => {
+                                                        onChangeText={(text) => {
                                                                 set_password(text);
                                                                 if (errors.password) {
                                                                         set_errors({ ...errors, password: null });
                                                                 }
                                                         }}
-                                                        secure_text_entry
-                                                        show_password_toggle
+                                                        secureTextEntry={true}
                                                         error={errors.password}
                                                         icon="lock-closed-outline"
                                                 />
 
-                                                <CustomInput
+                                                <SimpleInput
                                                         placeholder="Confirmar Contraseña"
                                                         value={confirm_password}
-                                                        on_change_text={(text) => {
+                                                        onChangeText={(text) => {
                                                                 set_confirm_password(text);
                                                                 if (errors.confirm_password) {
                                                                         set_errors({ ...errors, confirm_password: null });
                                                                 }
                                                         }}
-                                                        secure_text_entry
-                                                        show_password_toggle
+                                                        secureTextEntry={true}
                                                         error={errors.confirm_password}
                                                         icon="lock-closed-outline"
                                                 />
@@ -226,7 +223,7 @@ const RegisterScreen = ({ navigation }) => {
                                                 </View>
 
                                                 <CustomButton
-                                                        title={loading ? "Creando cuenta..." : "SIGN UP"}
+                                                        title={loading ? "Creando cuenta..." : "REGISTRARSE"}
                                                         on_press={handle_register}
                                                         disabled={loading}
                                                 />
@@ -241,8 +238,7 @@ const RegisterScreen = ({ navigation }) => {
                                                         </Text>
                                                 </View>
                                         </View>
-                                        </ScrollView>
-                                </TouchableWithoutFeedback>
+                                </ScrollView>
                         </KeyboardAvoidingView>
                 </SafeAreaView>
         );

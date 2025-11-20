@@ -9,12 +9,10 @@ import {
         ScrollView,
         Image,
         TouchableOpacity,
-        TouchableWithoutFeedback,
-        Keyboard,
 } from 'react-native';
 import { COLORS } from '../constants/colors.js';
 import CustomButton from '../components/CustomButton.js';
-import CustomInput from '../components/CustomInput.js';
+import SimpleInput from '../components/SimpleInput.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useNotifications } from '../context/NotificationsContext.js';
 import { validateEmail } from '../utils/validations.js';
@@ -111,11 +109,14 @@ const LoginScreen = ({ navigation }) => {
         return (
                 <SafeAreaView style={styles.container}>
                         <KeyboardAvoidingView
-                                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                                 style={styles.keyboard_view}
+                                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
                         >
-                                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                                        <ScrollView contentContainerStyle={styles.scroll_content}>
+                                <ScrollView
+                                        contentContainerStyle={styles.scroll_content}
+                                        keyboardShouldPersistTaps="handled"
+                                >
                                         {/* Header con imagen de tazas */}
                                         <View style={styles.header}>
                                                 <Image
@@ -127,7 +128,7 @@ const LoginScreen = ({ navigation }) => {
 
                                         {/* Contenido */}
                                         <View style={styles.content}>
-                                                <Text style={styles.title}>WELCOME BACK</Text>
+                                                <Text style={styles.title}>BIENVENIDO DE NUEVO</Text>
 
                                                 {/* Error general */}
                                                 {errors.general && (
@@ -136,39 +137,36 @@ const LoginScreen = ({ navigation }) => {
                                                         </View>
                                                 )}
 
-                                                <CustomInput
+                                                <SimpleInput
                                                         placeholder="Email o Teléfono"
                                                         value={email_or_phone}
-                                                        on_change_text={(text) => {
+                                                        onChangeText={(text) => {
                                                                 set_email_or_phone(text);
-                                                                // Limpiar error al escribir
                                                                 if (errors.email_or_phone) {
                                                                         set_errors({ ...errors, email_or_phone: null });
                                                                 }
                                                         }}
-                                                        keyboard_type="default"
+                                                        keyboardType="default"
                                                         error={errors.email_or_phone}
                                                         icon="mail-outline"
                                                 />
 
-                                                <CustomInput
-                                                        placeholder="Password"
+                                                <SimpleInput
+                                                        placeholder="Contraseña"
                                                         value={password}
-                                                        on_change_text={(text) => {
+                                                        onChangeText={(text) => {
                                                                 set_password(text);
-                                                                // Limpiar error al escribir
                                                                 if (errors.password) {
                                                                         set_errors({ ...errors, password: null });
                                                                 }
                                                         }}
-                                                        secure_text_entry
-                                                        show_password_toggle
+                                                        secureTextEntry={true}
                                                         error={errors.password}
                                                         icon="lock-closed-outline"
                                                 />
 
                                                 <CustomButton
-                                                        title={loading ? "Iniciando sesión..." : "SIGN IN"}
+                                                        title={loading ? "Iniciando sesión..." : "INICIAR SESIÓN"}
                                                         on_press={handle_login}
                                                         disabled={loading}
                                                 />
@@ -192,8 +190,7 @@ const LoginScreen = ({ navigation }) => {
                                                         </Text>
                                                 </View>
                                         </View>
-                                        </ScrollView>
-                                </TouchableWithoutFeedback>
+                                </ScrollView>
                         </KeyboardAvoidingView>
                 </SafeAreaView>
         );
