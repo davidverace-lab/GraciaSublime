@@ -1,0 +1,56 @@
+¡Hola Elena! 👋
+
+Este archivo fue creado para que puedas ver que se realizaron cambios importantes en el proyecto.
+
+📝 CAMBIOS REALIZADOS:
+
+✅ Sistema de pagos completamente refactorizado
+   - Eliminado PayPal completamente
+   - Implementado Stripe con Payment Sheet
+   - Integración segura con Supabase Edge Functions
+
+✅ Archivos nuevos creados:
+   - Supabase Edge Function para crear Payment Intents
+   - Scripts de instalación de dependencias (install-dependencies.sh y .bat)
+   - Migración SQL para agregar soporte de Stripe
+   - Configuración de Stripe actualizada
+
+✅ Archivos modificados:
+   - CheckoutPaymentScreen: Ahora usa Payment Sheet de Stripe
+   - ordersService: Actualizado para guardar stripe_payment_id
+   - App.js: Agregado StripeProvider
+   - package.json: Eliminado react-native-paypal-wrapper
+
+✅ Sistema de pedidos y reseñas:
+   - OrderHistoryScreen: Ya existe y funciona con reseñas
+   - AdminOrdersScreen: Ya existe para gestión admin
+   - WriteReviewScreen: Ya existe para que usuarios escriban reseñas
+   - Sistema de recompra implementado
+
+📋 PRÓXIMOS PASOS PARA CONFIGURAR:
+
+1. Configurar las claves de Stripe en src/config/stripe.js
+   - STRIPE_PUBLISHABLE_KEY (clave pública)
+
+2. Configurar la clave secreta en Supabase:
+   - Ir a Supabase Dashboard
+   - Settings → Edge Functions → Secrets
+   - Agregar: STRIPE_SECRET_KEY
+
+3. Desplegar la Edge Function:
+   supabase functions deploy create-payment-intent
+
+4. Ejecutar la migración SQL:
+   - Abrir Supabase SQL Editor
+   - Ejecutar el archivo: supabase/migrations/add_stripe_payment_id_to_orders.sql
+
+5. Instalar dependencias:
+   - En Linux/Mac: ./install-dependencies.sh
+   - En Windows: install-dependencies.bat
+   - O simplemente: npm install
+
+¡Todo listo para que puedas hacer pull y ver los cambios! 🎉
+
+--
+Generado automáticamente
+Fecha: 2025-11-20
