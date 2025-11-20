@@ -90,29 +90,37 @@ export const getOrderById = async (orderId) => {
 };
 
 // Crear nuevo pedido
-export const createOrder = async (userId, addressId, cartItems, totalPrice, paymentMethod = 'paypal', status = 'pendiente', paymentProof = null) => {
+export const createOrder = async (userId, addressId, cartItems, totalPrice, paymentMethod = 'stripe', status = 'pending', stripePaymentId = null) => {
   try {
     // 1. Crear el pedido
+    const orderData = {
+      user_id: userId,
+      address_id: addressId,
+      status: status,
+      total_price: totalPrice,
+      payment_method: paymentMethod,
+    };
+
+    // Si hay un Payment Intent ID de Stripe, agregarlo
+    if (stripePaymentId && paymentMethod === 'stripe') {
+      orderData.stripe_payment_id = stripePaymentId;
+    }
+
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .insert([{
-        user_id: userId,
-        address_id: addressId,
-        status: status,
-        total_price: totalPrice,
-        payment_method: paymentMethod,
-      }])
+      .insert([orderData])
       .select()
       .single();
 
     if (orderError) throw orderError;
 
     // 2. Si hay comprobante de pago (transferencia), guardarlo
-    if (paymentProof && paymentMethod === 'transferencia') {
+    // Nota: stripePaymentId puede ser una imagen URI si es transferencia bancaria
+    if (stripePaymentId && paymentMethod === 'transferencia' && stripePaymentId.startsWith('file://')) {
       const fileName = `payment_proofs/${order.order_id}_${Date.now()}.jpg`;
 
       // Convertir la URI a blob para subir
-      const response = await fetch(paymentProof);
+      const response = await fetch(stripePaymentId);
       const blob = await response.blob();
 
       const { data: uploadData, error: uploadError } = await supabase.storage

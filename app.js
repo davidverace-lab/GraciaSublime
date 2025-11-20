@@ -2,6 +2,8 @@ import 'react-native-gesture-handler';
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
+import { StripeProvider } from '@stripe/stripe-react-native';
+import { STRIPE_PUBLISHABLE_KEY } from './src/config/stripe.js';
 
 // Providers
 import { AuthProvider } from './src/context/AuthContext.js';
@@ -22,8 +24,9 @@ import AppNavigator from './src/navigation/AppNavigator.js';
 
 export default function App() {
         return (
-                // ⚠️ IMPORTANTE: AuthProvider DEBE ser el primero porque los demás dependen de él
-                <AuthProvider>
+                <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+                        {/* ⚠️ IMPORTANTE: AuthProvider DEBE ser el primero porque los demás dependen de él */}
+                        <AuthProvider>
                         {/* Productos y Categorías (no dependen de autenticación) */}
                         <ProductsProvider>
                                 <CategoriesProvider>
@@ -53,6 +56,7 @@ export default function App() {
                                         </CartProvider>
                                 </CategoriesProvider>
                         </ProductsProvider>
-                </AuthProvider>
+                        </AuthProvider>
+                </StripeProvider>
         );
 }
