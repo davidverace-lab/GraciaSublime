@@ -14,6 +14,7 @@ const CustomInput = ({
         show_password_toggle = false,
         icon = null,
         max_length = null,
+        editable = true,
         ...props
 }) => {
         const [is_password_visible, set_is_password_visible] = useState(false);
@@ -60,6 +61,7 @@ const CustomInput = ({
                                         returnKeyType="done"
                                         blurOnSubmit={true}
                                         maxLength={max_length}
+                                        editable={editable}
                                         {...props}
                                 />
                                 {show_password_toggle && (

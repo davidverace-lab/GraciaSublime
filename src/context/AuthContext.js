@@ -153,14 +153,24 @@ export const AuthProvider = ({ children }) => {
                         const { error } = await signOut();
                         if (error) throw error;
 
+                        // Limpiar completamente el estado
                         set_user(null);
                         set_profile(null);
                         set_is_authenticated(false);
                         set_is_admin(false);
                         set_view_mode('client');
+                        set_loading(false);
+
                         return { success: true };
                 } catch (error) {
                         console.error('Error en logout:', error);
+                        // Limpiar el estado incluso si hay error
+                        set_user(null);
+                        set_profile(null);
+                        set_is_authenticated(false);
+                        set_is_admin(false);
+                        set_view_mode('client');
+                        set_loading(false);
                         return { success: false, error: error.message };
                 }
         };
