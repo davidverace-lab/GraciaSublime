@@ -175,10 +175,12 @@ const ResetPasswordScreen = ({ navigation, route }) => {
                                                                         setErrors({ ...errors, newPassword: null });
                                                                 }
                                                         }}
-                                                        secure_text_entry
-                                                        show_password_toggle
+                                                        secure_text_entry={true}
+                                                        show_password_toggle={true}
                                                         icon="lock-closed-outline"
                                                         error={errors.newPassword}
+                                                        editable={true}
+                                                        autoCapitalize="none"
                                                 />
 
                                                 <CustomInput
@@ -190,10 +192,12 @@ const ResetPasswordScreen = ({ navigation, route }) => {
                                                                         setErrors({ ...errors, confirmPassword: null });
                                                                 }
                                                         }}
-                                                        secure_text_entry
-                                                        show_password_toggle
+                                                        secure_text_entry={true}
+                                                        show_password_toggle={true}
                                                         icon="lock-closed-outline"
                                                         error={errors.confirmPassword}
+                                                        editable={true}
+                                                        autoCapitalize="none"
                                                 />
 
                                                 {/* Indicadores de seguridad */}

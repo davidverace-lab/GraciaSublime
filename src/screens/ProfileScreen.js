@@ -186,6 +186,21 @@ const ProfileScreen = ({ navigation }) => {
                                         </TouchableOpacity>
                                 )}
 
+                                {/* Botón especial para davidverace22@gmail.com - Toggle modo admin */}
+                                {user?.email === 'davidverace22@gmail.com' && !is_admin && (
+                                        <TouchableOpacity
+                                                style={styles.special_admin_button}
+                                                activeOpacity={0.8}
+                                                onPress={() => {
+                                                        toggle_view_mode();
+                                                        navigation.navigate('AdminDrawer');
+                                                }}
+                                        >
+                                                <Ionicons name="construct" size={20} color={COLORS.white} />
+                                                <Text style={styles.edit_button_text}>Activar Modo Admin</Text>
+                                        </TouchableOpacity>
+                                )}
+
                                 {/* Botón de editar perfil */}
                                 <TouchableOpacity
                                         style={styles.edit_button}
@@ -485,6 +500,16 @@ const styles = StyleSheet.create({
         admin_button: {
                 flexDirection: 'row',
                 backgroundColor: '#FF6B6B',
+                marginHorizontal: 20,
+                marginBottom: 15,
+                paddingVertical: 15,
+                borderRadius: 15,
+                justifyContent: 'center',
+                alignItems: 'center',
+        },
+        special_admin_button: {
+                flexDirection: 'row',
+                backgroundColor: '#9C27B0',
                 marginHorizontal: 20,
                 marginBottom: 15,
                 paddingVertical: 15,

@@ -41,26 +41,26 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 setLoading(true);
 
                 try {
-                        // Enviar código de 4 dígitos
+                        // Enviar código de 6 dígitos
                         const result = await sendRecoveryCode(email.trim());
 
                         if (result.success) {
-                                // Mostrar código en desarrollo para facilitar pruebas
-                                const devMessage = result.devCode
-                                        ? `\n\n[DESARROLLO] Tu código es: ${result.devCode}`
+                                // Mostrar código para facilitar pruebas y presentaciones
+                                const codeMessage = result.devCode
+                                        ? `\n\n🔐 Tu código de verificación:\n\n${result.devCode}\n\n(También se envió a tu email)`
                                         : '';
 
                                 Alert.alert(
                                         '✅ Código Enviado',
-                                        `Te hemos enviado un código de 4 dígitos a tu email. Por favor revisa tu bandeja de entrada.${devMessage}`,
+                                        `Te hemos enviado un código de 6 dígitos a tu email. Por favor revisa tu bandeja de entrada.${codeMessage}`,
                                         [
                                                 {
-                                                        text: 'OK',
+                                                        text: 'Continuar',
                                                         onPress: () => {
                                                                 // Navegar a pantalla de verificación de código
                                                                 navigation.navigate('VerifyCode', {
                                                                         email: email.trim(),
-                                                                        devCode: result.devCode // Solo en desarrollo
+                                                                        devCode: result.devCode
                                                                 });
                                                         }
                                                 }
@@ -101,7 +101,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                                         <View style={styles.content}>
                                                 <Text style={styles.title}>¿Olvidaste tu contraseña?</Text>
                                                 <Text style={styles.subtitle}>
-                                                        Ingresa tu email y te enviaremos un código de 4 dígitos para restablecer tu contraseña
+                                                        Ingresa tu email y te enviaremos un código de 6 dígitos para restablecer tu contraseña
                                                 </Text>
 
                                                 {/* Error general */}
@@ -123,6 +123,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                                                         keyboard_type="email-address"
                                                         icon="mail-outline"
                                                         autoCapitalize="none"
+                                                        editable={true}
                                                         error={errors.email}
                                                 />
 

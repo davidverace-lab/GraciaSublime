@@ -15,7 +15,7 @@ import { verifyRecoveryCode, sendRecoveryCode } from '../services/passwordResetS
 
 const VerifyCodeScreen = ({ navigation, route }) => {
         const { email, devCode } = route.params;
-        const [code, setCode] = useState(['', '', '', '']);
+        const [code, setCode] = useState(['', '', '', '', '', '']);
         const [loading, setLoading] = useState(false);
         const [error, setError] = useState('');
         const [resendTimer, setResendTimer] = useState(60);
@@ -48,14 +48,14 @@ const VerifyCodeScreen = ({ navigation, route }) => {
                 setError('');
 
                 // Auto-focus al siguiente input
-                if (value && index < 3) {
+                if (value && index < 5) {
                         inputRefs.current[index + 1]?.focus();
                 }
 
                 // Verificar automáticamente cuando se complete el código
-                if (index === 3 && value) {
+                if (index === 5 && value) {
                         const fullCode = newCode.join('');
-                        if (fullCode.length === 4) {
+                        if (fullCode.length === 6) {
                                 handleVerifyCode(fullCode);
                         }
                 }
@@ -70,8 +70,8 @@ const VerifyCodeScreen = ({ navigation, route }) => {
         const handleVerifyCode = async (codeToVerify) => {
                 const fullCode = codeToVerify || code.join('');
 
-                if (fullCode.length !== 4) {
-                        setError('Por favor ingresa el código completo de 4 dígitos');
+                if (fullCode.length !== 6) {
+                        setError('Por favor ingresa el código completo de 6 dígitos');
                         return;
                 }
 
@@ -90,7 +90,7 @@ const VerifyCodeScreen = ({ navigation, route }) => {
                         } else {
                                 setError(result.error || 'El código ingresado es incorrecto o ha expirado');
                                 // Limpiar código
-                                setCode(['', '', '', '']);
+                                setCode(['', '', '', '', '', '']);
                                 inputRefs.current[0]?.focus();
                         }
                 } catch (error) {
@@ -111,14 +111,14 @@ const VerifyCodeScreen = ({ navigation, route }) => {
                         const result = await sendRecoveryCode(email);
 
                         if (result.success) {
-                                // Mostrar código en desarrollo
-                                const devMessage = result.devCode
-                                        ? `\n\n[DESARROLLO] Nuevo código: ${result.devCode}`
+                                // Mostrar código para presentación/demos
+                                const codeMessage = result.devCode
+                                        ? `\n\n🔐 Nuevo código:\n\n${result.devCode}`
                                         : '';
 
-                                Alert.alert('Código Reenviado', `Se ha enviado un nuevo código a tu email.${devMessage}`);
+                                Alert.alert('✅ Código Reenviado', `Se ha enviado un nuevo código a tu email.${codeMessage}`);
                                 setResendTimer(60);
-                                setCode(['', '', '', '']);
+                                setCode(['', '', '', '', '', '']);
                                 inputRefs.current[0]?.focus();
                         } else {
                                 setError(result.error || 'No se pudo reenviar el código');
@@ -150,7 +150,7 @@ const VerifyCodeScreen = ({ navigation, route }) => {
                         <View style={styles.content}>
                                 <Text style={styles.title}>Verificación de Código</Text>
                                 <Text style={styles.subtitle}>
-                                        Ingresa el código de 4 dígitos que enviamos a{'\n'}
+                                        Ingresa el código de 6 dígitos que enviamos a{'\n'}
                                         <Text style={styles.identifier}>{email}</Text>
                                 </Text>
 
@@ -187,7 +187,7 @@ const VerifyCodeScreen = ({ navigation, route }) => {
                                 <CustomButton
                                         title={loading ? 'Verificando...' : 'Verificar Código'}
                                         on_press={() => handleVerifyCode()}
-                                        disabled={loading || code.join('').length !== 4}
+                                        disabled={loading || code.join('').length !== 6}
                                 />
 
                                 {/* Reenviar código */}
@@ -206,10 +206,11 @@ const VerifyCodeScreen = ({ navigation, route }) => {
                                         </TouchableOpacity>
                                 </View>
 
-                                {/* Info en desarrollo */}
-                                {__DEV__ && devCode && (
+                                {/* Mostrar código para presentación/demos */}
+                                {devCode && (
                                         <View style={styles.devInfo}>
-                                                <Text style={styles.devInfoText}>🔧 DEV: Código = {devCode}</Text>
+                                                <Text style={styles.devInfoText}>🔐 Tu código: {devCode}</Text>
+                                                <Text style={styles.devInfoSubtext}>Cópialo y pégalo arriba</Text>
                                         </View>
                                 )}
                         </View>
@@ -285,12 +286,12 @@ const styles = StyleSheet.create({
                 paddingHorizontal: 20,
         },
         codeInput: {
-                width: 60,
-                height: 70,
+                width: 48,
+                height: 60,
                 borderWidth: 2,
                 borderColor: '#E0E0E0',
-                borderRadius: 15,
-                fontSize: 32,
+                borderRadius: 12,
+                fontSize: 28,
                 fontWeight: 'bold',
                 textAlign: 'center',
                 color: COLORS.textDark,
@@ -330,10 +331,17 @@ const styles = StyleSheet.create({
                 borderColor: '#FFE69C',
         },
         devInfoText: {
-                fontSize: 14,
+                fontSize: 18,
                 color: '#856404',
                 textAlign: 'center',
-                fontWeight: '600',
+                fontWeight: '700',
+                letterSpacing: 2,
+        },
+        devInfoSubtext: {
+                fontSize: 12,
+                color: '#856404',
+                textAlign: 'center',
+                marginTop: 5,
         },
 });
 

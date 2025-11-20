@@ -19,7 +19,6 @@ export const getCartItems = async (userId) => {
         custom_image,
         custom_design,
         design_name,
-        created_at,
         products (
           product_id,
           name,
@@ -82,8 +81,13 @@ export const addToCart = async (userId, productId, quantity = 1, variantId = nul
           if (!sameVariant) return false;
 
           // Verificar personalización
-          const sameCustomImage = item.custom_image === customization.custom_image;
-          const sameCustomDesign = JSON.stringify(item.custom_design) === JSON.stringify(customization.custom_design);
+          // Para imágenes, comparamos la URI completa
+          const sameCustomImage = (item.custom_image || null) === (customization.custom_image || null);
+
+          // Para diseños, comparamos el nombre del diseño que es más estable
+          const itemDesignName = item.design_name || (item.custom_design ? JSON.stringify(item.custom_design) : null);
+          const customDesignName = customization.design_name || (customization.custom_design ? JSON.stringify(customization.custom_design) : null);
+          const sameCustomDesign = itemDesignName === customDesignName;
 
           return sameCustomImage && sameCustomDesign;
         });
@@ -124,7 +128,6 @@ export const addToCart = async (userId, productId, quantity = 1, variantId = nul
           custom_image,
           custom_design,
           design_name,
-          created_at,
           products (
             product_id,
             name,
@@ -188,7 +191,6 @@ export const addToCart = async (userId, productId, quantity = 1, variantId = nul
           custom_image,
           custom_design,
           design_name,
-          created_at,
           products (
             product_id,
             name,
@@ -243,7 +245,6 @@ export const updateCartItemQuantity = async (cartItemId, quantity) => {
         custom_image,
         custom_design,
         design_name,
-        created_at,
         products (
           product_id,
           name,

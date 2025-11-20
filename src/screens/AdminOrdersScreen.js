@@ -3,7 +3,6 @@ import {
     View,
     Text,
     StyleSheet,
-    SafeAreaView,
     FlatList,
     TouchableOpacity,
     RefreshControl,
@@ -12,17 +11,27 @@ import {
     Image,
     Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../constants/colors';
-import { MOCK_ORDERS, initializeMockOrders } from '../utils/mockOrdersData';
+import { getAllOrders, updateOrderStatus } from '../services/ordersService';
 
 const STATUS_COLORS = {
-    Pendiente: { bg: '#FFE5E5', color: '#F44336', icon: 'time' },
-    Procesando: { bg: '#FFF4E5', color: '#FF9800', icon: 'construct' },
-    'En Tránsito': { bg: '#E3F2FD', color: '#2196F3', icon: 'car' },
-    Completado: { bg: '#E8F5E9', color: '#4CAF50', icon: 'checkmark-circle' },
-    Cancelado: { bg: '#F5F5F5', color: '#9E9E9E', icon: 'close-circle' },
+    pendiente: { bg: '#FFE5E5', color: '#F44336', icon: 'time' },
+    pago_pendiente: { bg: '#F3E5F5', color: '#9C27B0', icon: 'card-outline' },
+    procesando: { bg: '#FFF4E5', color: '#FF9800', icon: 'construct' },
+    en_transito: { bg: '#E3F2FD', color: '#2196F3', icon: 'car' },
+    completado: { bg: '#E8F5E9', color: '#4CAF50', icon: 'checkmark-circle' },
+    cancelado: { bg: '#F5F5F5', color: '#9E9E9E', icon: 'close-circle' },
+};
+
+const STATUS_DISPLAY = {
+    pendiente: 'Pendiente',
+    pago_pendiente: 'Pago Pendiente',
+    procesando: 'Procesando',
+    en_transito: 'En Tránsito',
+    completado: 'Completado',
+    cancelado: 'Cancelado',
 };
 
 const AdminOrdersScreen = () => {
@@ -31,6 +40,7 @@ const AdminOrdersScreen = () => {
     const [refreshing, set_refreshing] = useState(false);
     const [selected_order, set_selected_order] = useState(null);
     const [modal_visible, set_modal_visible] = useState(false);
+    const [loading, set_loading] = useState(true);
 
     useEffect(() => {
         load_orders();
@@ -38,15 +48,21 @@ const AdminOrdersScreen = () => {
 
     const load_orders = async () => {
         try {
-            const orders_data = await AsyncStorage.getItem('orders');
-            if (orders_data) {
-                const parsed_orders = JSON.parse(orders_data);
-                // Ordenar por fecha más reciente
-                parsed_orders.sort((a, b) => new Date(b.date) - new Date(a.date));
-                set_orders(parsed_orders);
+            set_loading(true);
+            const { data, error } = await getAllOrders();
+
+            if (error) {
+                console.error('Error loading orders:', error);
+                Alert.alert('Error', 'No se pudieron cargar los pedidos');
+                return;
             }
+
+            set_orders(data || []);
         } catch (error) {
-            console.error('Error al cargar pedidos:', error);
+            console.error('Error loading orders:', error);
+            Alert.alert('Error', 'Ocurrió un error al cargar los pedidos');
+        } finally {
+            set_loading(false);
         }
     };
 
@@ -58,14 +74,28 @@ const AdminOrdersScreen = () => {
 
     const change_order_status = async (order_id, new_status) => {
         try {
+            const { data, error } = await updateOrderStatus(order_id, new_status);
+
+            if (error) {
+                Alert.alert('Error', 'No se pudo actualizar el estado del pedido');
+                return;
+            }
+
+            // Actualizar localmente
             const updated_orders = orders.map((order) =>
-                order.id === order_id ? { ...order, status: new_status } : order
+                order.order_id === order_id ? { ...order, status: new_status } : order
             );
             set_orders(updated_orders);
-            await AsyncStorage.setItem('orders', JSON.stringify(updated_orders));
-            set_modal_visible(false);
+
+            // Actualizar orden seleccionada
+            if (selected_order && selected_order.order_id === order_id) {
+                set_selected_order({ ...selected_order, status: new_status });
+            }
+
+            Alert.alert('Éxito', `Estado actualizado a: ${STATUS_DISPLAY[new_status]}`);
         } catch (error) {
-            console.error('Error al actualizar estado:', error);
+            console.error('Error updating status:', error);
+            Alert.alert('Error', 'Ocurrió un error al actualizar el estado');
         }
     };
 
@@ -74,33 +104,9 @@ const AdminOrdersScreen = () => {
         return orders.filter((order) => order.status === filter_status);
     };
 
-    const load_mock_data = async () => {
-        Alert.alert(
-            'Cargar Datos de Ejemplo',
-            '¿Deseas cargar datos de ejemplo de pedidos? Esto reemplazará todos los pedidos actuales.',
-            [
-                {
-                    text: 'Cancelar',
-                    style: 'cancel',
-                },
-                {
-                    text: 'Cargar',
-                    onPress: async () => {
-                        try {
-                            await AsyncStorage.setItem('orders', JSON.stringify(MOCK_ORDERS));
-                            await load_orders();
-                            Alert.alert('Éxito', 'Datos de ejemplo cargados correctamente');
-                        } catch (error) {
-                            Alert.alert('Error', 'No se pudieron cargar los datos de ejemplo');
-                        }
-                    },
-                },
-            ]
-        );
-    };
-
     const render_order = ({ item }) => {
-        const status_style = STATUS_COLORS[item.status];
+        const status_style = STATUS_COLORS[item.status] || STATUS_COLORS.pendiente;
+        const total_items = item.order_items?.length || 0;
 
         return (
             <TouchableOpacity
@@ -112,21 +118,26 @@ const AdminOrdersScreen = () => {
             >
                 <View style={styles.order_header}>
                     <View>
-                        <Text style={styles.order_id}>Pedido #{item.id}</Text>
+                        <Text style={styles.order_id}>Pedido #{item.order_id}</Text>
                         <Text style={styles.order_date}>
-                            {new Date(item.date).toLocaleDateString('es-MX', {
+                            {new Date(item.order_date).toLocaleDateString('es-MX', {
                                 day: '2-digit',
                                 month: 'short',
                                 hour: '2-digit',
                                 minute: '2-digit',
                             })}
                         </Text>
+                        {item.profiles?.name && (
+                            <Text style={styles.customer_name}>
+                                <Ionicons name="person" size={12} color="#666" /> {item.profiles.name}
+                            </Text>
+                        )}
                     </View>
 
                     <View style={[styles.status_badge, { backgroundColor: status_style.bg }]}>
                         <Ionicons name={status_style.icon} size={16} color={status_style.color} />
                         <Text style={[styles.status_text, { color: status_style.color }]}>
-                            {item.status}
+                            {STATUS_DISPLAY[item.status]}
                         </Text>
                     </View>
                 </View>
@@ -134,16 +145,25 @@ const AdminOrdersScreen = () => {
                 <View style={styles.order_info}>
                     <View style={styles.info_row}>
                         <Ionicons name="cart-outline" size={18} color="#666" />
-                        <Text style={styles.info_text}>{item.items.length} productos</Text>
+                        <Text style={styles.info_text}>{total_items} productos</Text>
                     </View>
 
                     <View style={styles.info_row}>
                         <Ionicons name="cash-outline" size={18} color="#666" />
                         <Text style={[styles.info_text, styles.price_text]}>
-                            ${item.total.toFixed(2)} MXN
+                            ${item.total_price?.toFixed(2)} MXN
                         </Text>
                     </View>
                 </View>
+
+                {item.payment_method && (
+                    <View style={styles.payment_method_row}>
+                        <Ionicons name="card-outline" size={16} color="#999" />
+                        <Text style={styles.payment_method_text}>
+                            {item.payment_method === 'transferencia' ? 'Transferencia Bancaria' : 'PayPal'}
+                        </Text>
+                    </View>
+                )}
 
                 <TouchableOpacity style={styles.view_button}>
                     <Text style={styles.view_button_text}>Ver detalles</Text>
@@ -159,9 +179,8 @@ const AdminOrdersScreen = () => {
             <View style={styles.header}>
                 <View style={styles.header_top}>
                     <Text style={styles.header_title}>Pedidos</Text>
-                    <TouchableOpacity onPress={load_mock_data} style={styles.mock_button}>
-                        <Ionicons name="download-outline" size={20} color={COLORS.white} />
-                        <Text style={styles.mock_button_text}>Datos de Ejemplo</Text>
+                    <TouchableOpacity onPress={load_orders} style={styles.refresh_button}>
+                        <Ionicons name="refresh" size={20} color={COLORS.white} />
                     </TouchableOpacity>
                 </View>
 
@@ -171,7 +190,7 @@ const AdminOrdersScreen = () => {
                     showsHorizontalScrollIndicator={false}
                     style={styles.filters_container}
                 >
-                    {['all', 'Pendiente', 'Procesando', 'En Tránsito', 'Completado'].map(
+                    {['all', 'pago_pendiente', 'pendiente', 'procesando', 'en_transito', 'completado'].map(
                         (status) => (
                             <TouchableOpacity
                                 key={status}
@@ -187,7 +206,7 @@ const AdminOrdersScreen = () => {
                                         filter_status === status && styles.filter_text_active,
                                     ]}
                                 >
-                                    {status === 'all' ? 'Todos' : status}
+                                    {status === 'all' ? 'Todos' : STATUS_DISPLAY[status]}
                                 </Text>
                             </TouchableOpacity>
                         )
@@ -199,7 +218,7 @@ const AdminOrdersScreen = () => {
             <FlatList
                 data={get_filtered_orders()}
                 renderItem={render_order}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item) => item.order_id.toString()}
                 contentContainerStyle={styles.list_container}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={on_refresh} />
@@ -207,7 +226,9 @@ const AdminOrdersScreen = () => {
                 ListEmptyComponent={
                     <View style={styles.empty_container}>
                         <Ionicons name="receipt-outline" size={80} color="#ccc" />
-                        <Text style={styles.empty_text}>No hay pedidos</Text>
+                        <Text style={styles.empty_text}>
+                            {loading ? 'Cargando pedidos...' : 'No hay pedidos'}
+                        </Text>
                     </View>
                 }
             />
@@ -223,7 +244,7 @@ const AdminOrdersScreen = () => {
                     <View style={styles.modal_container}>
                         <View style={styles.modal_header}>
                             <Text style={styles.modal_title}>
-                                Pedido #{selected_order?.id}
+                                Pedido #{selected_order?.order_id}
                             </Text>
                             <TouchableOpacity onPress={() => set_modal_visible(false)}>
                                 <Ionicons name="close" size={28} color="#333" />
@@ -231,84 +252,6 @@ const AdminOrdersScreen = () => {
                         </View>
 
                         <ScrollView style={styles.modal_content}>
-                            {/* Información del pedido */}
-                            <View style={styles.modal_section}>
-                                <Text style={styles.modal_section_title}>📋 Información del Pedido</Text>
-
-                                <View style={styles.info_card}>
-                                    <View style={styles.info_detail_row}>
-                                        <Ionicons name="receipt-outline" size={20} color={COLORS.primary} />
-                                        <View style={styles.info_detail_content}>
-                                            <Text style={styles.info_detail_label}>ID de Pedido</Text>
-                                            <Text style={styles.info_detail_value}>#{selected_order?.id}</Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.info_detail_row}>
-                                        <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
-                                        <View style={styles.info_detail_content}>
-                                            <Text style={styles.info_detail_label}>Fecha del Pedido</Text>
-                                            <Text style={styles.info_detail_value}>
-                                                {selected_order &&
-                                                    new Date(selected_order.date).toLocaleDateString(
-                                                        'es-MX',
-                                                        {
-                                                            day: 'numeric',
-                                                            month: 'long',
-                                                            year: 'numeric',
-                                                            hour: '2-digit',
-                                                            minute: '2-digit',
-                                                        }
-                                                    )}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.info_detail_row}>
-                                        <Ionicons name="person-outline" size={20} color={COLORS.primary} />
-                                        <View style={styles.info_detail_content}>
-                                            <Text style={styles.info_detail_label}>Cliente</Text>
-                                            <Text style={styles.info_detail_value}>
-                                                {selected_order?.customer_name || 'No especificado'}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.info_detail_row}>
-                                        <Ionicons name="card-outline" size={20} color={COLORS.primary} />
-                                        <View style={styles.info_detail_content}>
-                                            <Text style={styles.info_detail_label}>Método de Pago</Text>
-                                            <Text style={styles.info_detail_value}>
-                                                {selected_order?.payment_method || 'No especificado'}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                </View>
-                            </View>
-
-                            {/* Dirección de Entrega */}
-                            {selected_order?.delivery_address && (
-                                <View style={styles.modal_section}>
-                                    <Text style={styles.modal_section_title}>📍 Dirección de Entrega</Text>
-                                    <View style={styles.address_card}>
-                                        <Ionicons name="location" size={24} color={COLORS.primary} />
-                                        <Text style={styles.address_text}>
-                                            {selected_order.delivery_address}
-                                        </Text>
-                                    </View>
-                                </View>
-                            )}
-
-                            {/* Notas del Pedido */}
-                            {selected_order?.notes && (
-                                <View style={styles.modal_section}>
-                                    <Text style={styles.modal_section_title}>📝 Notas Especiales</Text>
-                                    <View style={styles.notes_card}>
-                                        <Text style={styles.notes_text}>{selected_order.notes}</Text>
-                                    </View>
-                                </View>
-                            )}
-
                             {/* Estado actual */}
                             <View style={styles.modal_section}>
                                 <Text style={styles.modal_section_title}>📊 Estado Actual</Text>
@@ -318,56 +261,70 @@ const AdminOrdersScreen = () => {
                                             styles.current_status,
                                             {
                                                 backgroundColor:
-                                                    STATUS_COLORS[selected_order.status].bg,
+                                                    STATUS_COLORS[selected_order.status]?.bg,
                                             },
                                         ]}
                                     >
                                         <Ionicons
-                                            name={STATUS_COLORS[selected_order.status].icon}
+                                            name={STATUS_COLORS[selected_order.status]?.icon}
                                             size={24}
-                                            color={STATUS_COLORS[selected_order.status].color}
+                                            color={STATUS_COLORS[selected_order.status]?.color}
                                         />
                                         <Text
                                             style={[
                                                 styles.current_status_text,
                                                 {
                                                     color: STATUS_COLORS[selected_order.status]
-                                                        .color,
+                                                        ?.color,
                                                 },
                                             ]}
                                         >
-                                            {selected_order.status}
+                                            {STATUS_DISPLAY[selected_order.status]}
                                         </Text>
                                     </View>
                                 )}
                             </View>
 
+                            {/* Comprobante de pago */}
+                            {selected_order?.payment_proof_url && (
+                                <View style={styles.modal_section}>
+                                    <Text style={styles.modal_section_title}>📷 Comprobante de Pago</Text>
+                                    <Image
+                                        source={{ uri: selected_order.payment_proof_url }}
+                                        style={styles.payment_proof_image}
+                                        resizeMode="contain"
+                                    />
+                                </View>
+                            )}
+
                             {/* Productos */}
                             <View style={styles.modal_section}>
                                 <Text style={styles.modal_section_title}>
-                                    🛍️ Productos ({selected_order?.items.length})
+                                    🛍️ Productos ({selected_order?.order_items?.length || 0})
                                 </Text>
-                                {selected_order?.items.map((item, index) => (
+                                {selected_order?.order_items?.map((item, index) => (
                                     <View key={index} style={styles.order_item}>
-                                        <Image
-                                            source={item.product.image}
-                                            style={styles.product_image}
-                                        />
+                                        {item.products?.image_url && (
+                                            <Image
+                                                source={{ uri: item.products.image_url }}
+                                                style={styles.product_image}
+                                            />
+                                        )}
                                         <View style={styles.item_info}>
                                             <Text style={styles.item_name}>
-                                                {item.product.name}
+                                                {item.products?.name}
                                             </Text>
                                             <Text style={styles.item_quantity}>
                                                 Cantidad: {item.quantity}
                                             </Text>
                                             <Text style={styles.item_price}>
-                                                ${item.product.price.toFixed(2)} MXN c/u
+                                                ${item.price?.toFixed(2)} MXN c/u
                                             </Text>
                                         </View>
                                         <View style={styles.item_total_container}>
                                             <Text style={styles.item_total_label}>Total</Text>
                                             <Text style={styles.item_total}>
-                                                ${(item.product.price * item.quantity).toFixed(2)}
+                                                ${(item.price * item.quantity).toFixed(2)}
                                             </Text>
                                         </View>
                                     </View>
@@ -379,43 +336,47 @@ const AdminOrdersScreen = () => {
                                 <Text style={styles.modal_section_title}>💰 Resumen</Text>
                                 <View style={styles.summary_container}>
                                     <View style={styles.summary_row}>
-                                        <Text style={styles.summary_label}>Subtotal</Text>
-                                        <Text style={styles.summary_text}>
-                                            ${selected_order?.total.toFixed(2)} MXN
-                                        </Text>
-                                    </View>
-                                    {selected_order?.delivery_fee && (
-                                        <View style={styles.summary_row}>
-                                            <Text style={styles.summary_label}>Envío</Text>
-                                            <Text style={styles.summary_text}>
-                                                ${selected_order.delivery_fee.toFixed(2)} MXN
-                                            </Text>
-                                        </View>
-                                    )}
-                                    <View style={styles.summary_divider} />
-                                    <View style={styles.summary_row}>
                                         <Text style={styles.summary_total_label}>Total</Text>
                                         <Text style={styles.summary_total_value}>
-                                            $
-                                            {(
-                                                selected_order?.total +
-                                                (selected_order?.delivery_fee || 0)
-                                            ).toFixed(2)}{' '}
-                                            MXN
+                                            ${selected_order?.total_price?.toFixed(2)} MXN
                                         </Text>
                                     </View>
                                 </View>
                             </View>
 
                             {/* Cambiar estado */}
-                            {selected_order?.status !== 'Completado' &&
-                                selected_order?.status !== 'Cancelado' && (
+                            {selected_order?.status !== 'completado' &&
+                                selected_order?.status !== 'cancelado' && (
                                     <View style={styles.modal_section}>
                                         <Text style={styles.modal_section_title}>
-                                            Cambiar Estado
+                                            🔄 Cambiar Estado
                                         </Text>
 
-                                        {selected_order?.status === 'Pendiente' && (
+                                        {selected_order?.status === 'pago_pendiente' && (
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.status_button,
+                                                    { backgroundColor: '#4CAF50' },
+                                                ]}
+                                                onPress={() =>
+                                                    change_order_status(
+                                                        selected_order.order_id,
+                                                        'pendiente'
+                                                    )
+                                                }
+                                            >
+                                                <Ionicons
+                                                    name="checkmark-circle"
+                                                    size={20}
+                                                    color={COLORS.white}
+                                                />
+                                                <Text style={styles.status_button_text}>
+                                                    Confirmar Pago
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
+
+                                        {selected_order?.status === 'pendiente' && (
                                             <TouchableOpacity
                                                 style={[
                                                     styles.status_button,
@@ -423,8 +384,8 @@ const AdminOrdersScreen = () => {
                                                 ]}
                                                 onPress={() =>
                                                     change_order_status(
-                                                        selected_order.id,
-                                                        'Procesando'
+                                                        selected_order.order_id,
+                                                        'procesando'
                                                     )
                                                 }
                                             >
@@ -439,7 +400,7 @@ const AdminOrdersScreen = () => {
                                             </TouchableOpacity>
                                         )}
 
-                                        {selected_order?.status === 'Procesando' && (
+                                        {selected_order?.status === 'procesando' && (
                                             <TouchableOpacity
                                                 style={[
                                                     styles.status_button,
@@ -447,8 +408,8 @@ const AdminOrdersScreen = () => {
                                                 ]}
                                                 onPress={() =>
                                                     change_order_status(
-                                                        selected_order.id,
-                                                        'En Tránsito'
+                                                        selected_order.order_id,
+                                                        'en_transito'
                                                     )
                                                 }
                                             >
@@ -463,7 +424,7 @@ const AdminOrdersScreen = () => {
                                             </TouchableOpacity>
                                         )}
 
-                                        {selected_order?.status === 'En Tránsito' && (
+                                        {selected_order?.status === 'en_transito' && (
                                             <TouchableOpacity
                                                 style={[
                                                     styles.status_button,
@@ -471,8 +432,8 @@ const AdminOrdersScreen = () => {
                                                 ]}
                                                 onPress={() =>
                                                     change_order_status(
-                                                        selected_order.id,
-                                                        'Completado'
+                                                        selected_order.order_id,
+                                                        'completado'
                                                     )
                                                 }
                                             >
@@ -494,8 +455,8 @@ const AdminOrdersScreen = () => {
                                             ]}
                                             onPress={() =>
                                                 change_order_status(
-                                                    selected_order.id,
-                                                    'Cancelado'
+                                                    selected_order.order_id,
+                                                    'cancelado'
                                                 )
                                             }
                                         >
@@ -539,19 +500,10 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: COLORS.white,
     },
-    mock_button: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    refresh_button: {
         backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        padding: 10,
         borderRadius: 20,
-        gap: 6,
-    },
-    mock_button_text: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: COLORS.white,
     },
     filters_container: {
         flexDirection: 'row',
@@ -605,6 +557,11 @@ const styles = StyleSheet.create({
         color: '#999',
         textTransform: 'capitalize',
     },
+    customer_name: {
+        fontSize: 12,
+        color: '#666',
+        marginTop: 2,
+    },
     status_badge: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -634,6 +591,16 @@ const styles = StyleSheet.create({
     price_text: {
         fontWeight: 'bold',
         color: COLORS.primary,
+    },
+    payment_method_row: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 8,
+    },
+    payment_method_text: {
+        fontSize: 12,
+        color: '#999',
     },
     view_button: {
         flexDirection: 'row',
@@ -710,61 +677,11 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
     },
-    info_card: {
-        backgroundColor: '#f9f9f9',
+    payment_proof_image: {
+        width: '100%',
+        height: 300,
         borderRadius: 12,
-        padding: 15,
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-    },
-    info_detail_row: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        marginBottom: 15,
-        gap: 12,
-    },
-    info_detail_content: {
-        flex: 1,
-    },
-    info_detail_label: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#999',
-        marginBottom: 4,
-        textTransform: 'uppercase',
-    },
-    info_detail_value: {
-        fontSize: 15,
-        color: '#333',
-        fontWeight: '500',
-    },
-    address_card: {
-        flexDirection: 'row',
-        backgroundColor: '#E3F2FD',
-        borderRadius: 12,
-        padding: 15,
-        gap: 12,
-        borderLeftWidth: 4,
-        borderLeftColor: COLORS.primary,
-    },
-    address_text: {
-        flex: 1,
-        fontSize: 14,
-        color: '#333',
-        lineHeight: 20,
-    },
-    notes_card: {
-        backgroundColor: '#FFF4E5',
-        borderRadius: 12,
-        padding: 15,
-        borderLeftWidth: 4,
-        borderLeftColor: '#FF9800',
-    },
-    notes_text: {
-        fontSize: 14,
-        color: '#333',
-        lineHeight: 20,
-        fontStyle: 'italic',
+        backgroundColor: '#f0f0f0',
     },
     order_item: {
         flexDirection: 'row',
@@ -821,19 +738,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         paddingVertical: 6,
-    },
-    summary_label: {
-        fontSize: 14,
-        color: '#666',
-    },
-    summary_text: {
-        fontSize: 14,
-        color: '#333',
-    },
-    summary_divider: {
-        height: 1,
-        backgroundColor: '#e0e0e0',
-        marginVertical: 10,
     },
     summary_total_label: {
         fontSize: 18,

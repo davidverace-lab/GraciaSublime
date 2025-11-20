@@ -83,6 +83,7 @@ const ProductDetailScreen = ({ navigation, route }) => {
     const [selected_design, set_selected_design] = useState(null);
     const [show_design_modal, set_show_design_modal] = useState(false);
     const [show_reviews_modal, set_show_reviews_modal] = useState(false);
+    const [show_image_modal, set_show_image_modal] = useState(false);
     const [custom_image, set_custom_image] = useState(null);
     const [search_query, set_search_query] = useState('');
     const [selected_template, set_selected_template] = useState(null);
@@ -492,7 +493,11 @@ const ProductDetailScreen = ({ navigation, route }) => {
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Imagen del producto */}
-                <View style={styles.previewContainer}>
+                <TouchableOpacity
+                    style={styles.previewContainer}
+                    onPress={() => set_show_image_modal(true)}
+                    activeOpacity={0.9}
+                >
                     {product.image_url ? (
                         <Image
                             source={{ uri: product.image_url }}
@@ -510,7 +515,10 @@ const ProductDetailScreen = ({ navigation, route }) => {
                             <Ionicons name="image-outline" size={60} color="#ccc" />
                         </View>
                     )}
-                </View>
+                    <View style={styles.zoomIconContainer}>
+                        <Ionicons name="expand-outline" size={24} color={COLORS.white} />
+                    </View>
+                </TouchableOpacity>
 
                 {/* Mostrar imagen personalizada si existe */}
                 {custom_image && (
@@ -551,7 +559,23 @@ const ProductDetailScreen = ({ navigation, route }) => {
                                 <Text style={styles.ratingTextSmall}>{average_rating.toFixed(1)}</Text>
                             </TouchableOpacity>
                         </View>
-                        <Text style={styles.price}>${product.price}</Text>
+                        <View style={styles.priceAndFavoriteRow}>
+                            <Text style={styles.price}>${product.price}</Text>
+                            <TouchableOpacity
+                                style={[
+                                    styles.favoriteButton,
+                                    is_favorite(product.id) && styles.favoriteButtonActive,
+                                ]}
+                                onPress={handle_toggle_favorite}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons
+                                    name={is_favorite(product.id) ? 'heart' : 'heart-outline'}
+                                    size={24}
+                                    color={is_favorite(product.id) ? '#E03C3C' : COLORS.primary}
+                                />
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     {selected_design && (
@@ -854,22 +878,6 @@ const ProductDetailScreen = ({ navigation, route }) => {
                 </TouchableOpacity>
             </Animated.View>
 
-            {/* Botón flotante de favoritos */}
-            <TouchableOpacity
-                style={[
-                    styles.favoriteFloatingButton,
-                    is_favorite(product.id) && styles.favoriteButtonActive,
-                ]}
-                onPress={handle_toggle_favorite}
-                activeOpacity={0.8}
-            >
-                <Ionicons
-                    name={is_favorite(product.id) ? 'heart' : 'heart-outline'}
-                    size={24}
-                    color={COLORS.white}
-                />
-            </TouchableOpacity>
-
             {/* Modal de selección de diseño */}
             <Modal
                 visible={show_design_modal}
@@ -1025,6 +1033,46 @@ const ProductDetailScreen = ({ navigation, route }) => {
                             contentContainerStyle={styles.reviewsList}
                             showsVerticalScrollIndicator={false}
                         />
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Modal de imagen completa */}
+            <Modal
+                visible={show_image_modal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => set_show_image_modal(false)}
+            >
+                <View style={styles.imageModalOverlay}>
+                    <TouchableOpacity
+                        style={styles.imageModalCloseArea}
+                        activeOpacity={1}
+                        onPress={() => set_show_image_modal(false)}
+                    >
+                        <View style={styles.imageModalHeader}>
+                            <TouchableOpacity
+                                onPress={() => set_show_image_modal(false)}
+                                style={styles.imageModalCloseButton}
+                            >
+                                <Ionicons name="close" size={32} color={COLORS.white} />
+                            </TouchableOpacity>
+                        </View>
+                    </TouchableOpacity>
+                    <View style={styles.imageModalContent}>
+                        {product.image_url ? (
+                            <Image
+                                source={{ uri: product.image_url }}
+                                style={styles.fullImage}
+                                resizeMode="contain"
+                            />
+                        ) : product.image ? (
+                            <Image
+                                source={product.image}
+                                style={styles.fullImage}
+                                resizeMode="contain"
+                            />
+                        ) : null}
                     </View>
                 </View>
             </Modal>
@@ -1257,11 +1305,29 @@ const styles = StyleSheet.create({
         color: COLORS.textDark,
         marginLeft: 4,
     },
+    priceAndFavoriteRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
     price: {
         fontSize: 32,
         fontWeight: 'bold',
         color: COLORS.primary,
-        marginLeft: 10,
+    },
+    favoriteButton: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: COLORS.primaryLight,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: COLORS.primary,
+    },
+    favoriteButtonActive: {
+        backgroundColor: '#FFE5E5',
+        borderColor: '#E03C3C',
     },
     customBadge: {
         flexDirection: 'row',
@@ -1336,25 +1402,6 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.4,
         shadowRadius: 12,
         elevation: 12,
-    },
-    favoriteFloatingButton: {
-        position: 'absolute',
-        right: 20,
-        bottom: 95,
-        width: 55,
-        height: 55,
-        borderRadius: 27.5,
-        backgroundColor: COLORS.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
-        elevation: 6,
-    },
-    favoriteButtonActive: {
-        backgroundColor: '#E03C3C',
     },
     modalOverlay: {
         flex: 1,
@@ -1882,6 +1929,46 @@ const styles = StyleSheet.create({
         color: '#666',
         textAlign: 'center',
         fontStyle: 'italic',
+    },
+    zoomIconContainer: {
+        position: 'absolute',
+        bottom: 15,
+        right: 15,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        borderRadius: 20,
+        padding: 10,
+    },
+    imageModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    },
+    imageModalCloseArea: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+    },
+    imageModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        padding: 20,
+        paddingTop: 50,
+    },
+    imageModalCloseButton: {
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        borderRadius: 20,
+        padding: 8,
+    },
+    imageModalContent: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    fullImage: {
+        width: '100%',
+        height: '100%',
     },
 });
 

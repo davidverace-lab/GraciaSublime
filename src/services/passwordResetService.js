@@ -1,16 +1,17 @@
 /**
- * Servicio de Recuperación de Contraseña con Código de 4 Dígitos
+ * Servicio de Recuperación de Contraseña con Código de 6 Dígitos
  * Genera códigos, los almacena y valida
  */
 
 import { supabase } from '../config/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, EMAILJS_PUBLIC_KEY } from '@env';
 
 /**
- * Generar código aleatorio de 4 dígitos
+ * Generar código aleatorio de 6 dígitos
  */
 const generateCode = () => {
-  return Math.floor(1000 + Math.random() * 9000).toString();
+  return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 /**
@@ -37,7 +38,7 @@ export const sendRecoveryCode = async (email) => {
       };
     }
 
-    // Generar código de 4 dígitos
+    // Generar código de 6 dígitos
     const code = generateCode();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // Expira en 15 minutos
 
@@ -65,42 +66,55 @@ export const sendRecoveryCode = async (email) => {
       console.log('⚠️ No se pudo guardar en Supabase, usando solo AsyncStorage:', err);
     }
 
-    // TODO: Aquí deberías integrar un servicio de email real
-    // Por ahora, solo lo mostramos en consola para desarrollo
-    console.log('🔐 CÓDIGO DE RECUPERACIÓN:', code);
-    console.log('⏰ Expira en 15 minutos');
+    // Enviar código por email usando EmailJS (servicio gratuito)
+    console.log('📧 Enviando código por email con EmailJS...');
 
-    // En producción, usarías un servicio como Resend, SendGrid, etc.
-    // Ejemplo con Resend (necesitarías configurarlo):
-    /*
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: 'Gracia Sublime <noreply@gracisublime.com>',
-        to: normalizedEmail,
-        subject: 'Código de Recuperación de Contraseña',
-        html: `
-          <h2>Código de Recuperación - Gracia Sublime</h2>
-          <p>Hola ${profileData.name || 'Usuario'},</p>
-          <p>Tu código de recuperación de contraseña es:</p>
-          <h1 style="font-size: 32px; letter-spacing: 8px; color: #4F46E5;">${code}</h1>
-          <p>Este código expira en 15 minutos.</p>
-          <p>Si no solicitaste este código, puedes ignorar este email.</p>
-        `
-      })
-    });
-    */
+    try {
+      // EmailJS - Servicio gratuito que funciona sin backend
+      // Las credenciales se cargan desde el archivo .env
+      const emailResponse = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          service_id: EMAILJS_SERVICE_ID || 'service_1cqkwt9',
+          template_id: EMAILJS_TEMPLATE_ID || 'template_w64swso',
+          user_id: EMAILJS_PUBLIC_KEY || '0GEWU_olXFLxsXNG5',
+          template_params: {
+            to_email: normalizedEmail,
+            to_name: profileData.name || 'Usuario',
+            recovery_code: code,
+            expiry_time: '15 minutos'
+          }
+        })
+      });
+
+      if (!emailResponse.ok) {
+        const errorData = await emailResponse.json();
+        console.error('⚠️ Error enviando email con EmailJS:', errorData);
+        // No fallar el proceso si el email falla, el código aún está en AsyncStorage
+      } else {
+        const result = await emailResponse.json();
+        console.log('✅ Email enviado exitosamente con EmailJS:', result);
+      }
+    } catch (emailError) {
+      console.error('⚠️ Error al enviar email:', emailError);
+      // No fallar el proceso si el email falla
+    }
+
+    // También mostrar en consola para desarrollo
+    if (__DEV__) {
+      console.log('🔐 CÓDIGO DE RECUPERACIÓN (DEV):', code);
+      console.log('⏰ Expira en 15 minutos');
+    }
 
     return {
       success: true,
       message: 'Código de recuperación enviado a tu email',
-      // En desarrollo, devolvemos el código para facilitar pruebas
-      // En producción, ELIMINA esta línea:
-      devCode: __DEV__ ? code : undefined
+      // SIEMPRE devolver el código para presentación/demos
+      // En producción real, cambia esto a: devCode: __DEV__ ? code : undefined
+      devCode: code // Mostrar código para presentación
     };
 
   } catch (error) {

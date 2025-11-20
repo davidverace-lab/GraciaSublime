@@ -15,6 +15,7 @@ import CustomButton from '../components/CustomButton.js';
 import PayPalButton from '../components/PayPalButton.js';
 import { useCart } from '../context/CartContext.js';
 import { useAuth } from '../context/AuthContext.js';
+import { createOrder } from '../services/ordersService.js';
 
 const CheckoutPaymentScreen = ({ navigation, route }) => {
         const { get_total, cart_items, clear_cart } = useCart();
@@ -31,7 +32,6 @@ const CheckoutPaymentScreen = ({ navigation, route }) => {
 
         const payment_methods = [
                 { id: 'paypal', name: 'PayPal', icon: 'logo-paypal', description: 'Paga con tu cuenta PayPal de forma segura' },
-                { id: 'card', name: 'Tarjeta (PayPal)', icon: 'card', description: 'Paga con tarjeta a través de PayPal' },
                 { id: 'transfer', name: 'Transferencia Bancaria', icon: 'swap-horizontal', description: 'Recibirás los datos bancarios' },
         ];
 
@@ -41,18 +41,16 @@ const CheckoutPaymentScreen = ({ navigation, route }) => {
                         return;
                 }
 
-                if (payment_method === 'card') {
-                        if (!card_number || !card_name || !expiry_date || !cvv) {
-                                Alert.alert('Error', 'Por favor completa todos los datos de la tarjeta');
-                                return;
-                        }
-                        if (card_number.length < 16) {
-                                Alert.alert('Error', 'Número de tarjeta inválido');
-                                return;
-                        }
+                // Para transferencia, navegar a pantalla de datos bancarios
+                if (payment_method === 'transfer') {
+                        navigation.navigate('BankTransferScreen', {
+                                selected_address,
+                                total: get_total(),
+                        });
+                        return;
                 }
 
-                // Navegar a confirmación
+                // Navegar a confirmación para otros métodos
                 navigation.navigate('CheckoutConfirmation', {
                         payment_method,
                         selected_address,
@@ -60,16 +58,49 @@ const CheckoutPaymentScreen = ({ navigation, route }) => {
         };
 
         // Manejar pago exitoso de PayPal
-        const handle_paypal_success = (payment_data) => {
-                console.log('Pago de PayPal exitoso:', payment_data);
+        const handle_paypal_success = async (payment_data) => {
+                console.log('✅ Pago de PayPal exitoso:', payment_data);
 
-                // Navegar a confirmación con los datos del pago
-                navigation.navigate('CheckoutConfirmation', {
-                        payment_method: 'paypal',
-                        payment_data,
-                        selected_address,
-                        skip_payment: true, // Ya se procesó el pago
-                });
+                try {
+                        // Crear el pedido en la base de datos con todos los parámetros
+                        const result = await createOrder(
+                                user.id,
+                                selected_address?.address_id,
+                                cart_items,
+                                get_total(),
+                                'paypal',
+                                'pendiente',
+                                null // PayPal no tiene comprobante de imagen
+                        );
+
+                        if (result.error) {
+                                throw new Error(result.error.message || 'Error al crear el pedido');
+                        }
+
+                        console.log('✅ Pedido creado exitosamente en Supabase:', result.data);
+
+                        // Limpiar carrito localmente
+                        clear_cart();
+
+                        // Navegar a pantalla de agradecimiento con reset para evitar volver atrás
+                        navigation.reset({
+                                index: 0,
+                                routes: [{
+                                        name: 'OrderSuccess',
+                                        params: {
+                                                order_id: result.data.order_id,
+                                                payment_method: 'paypal',
+                                                transaction_id: payment_data.transactionId,
+                                        },
+                                }],
+                        });
+                } catch (error) {
+                        console.error('❌ Error procesando pedido después de pago exitoso:', error);
+                        Alert.alert(
+                                'Error',
+                                'Tu pago fue exitoso pero hubo un problema al crear el pedido. Por favor contacta a soporte con tu ID de transacción: ' + payment_data.transactionId
+                        );
+                }
         };
 
         // Manejar error de PayPal

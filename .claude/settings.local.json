@@ -27,7 +27,8 @@
       "Bash(then echo \"Archivo .env existe\")",
       "Bash(else echo \"Archivo .env NO existe\")",
       "Bash(fi)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(wc:*)"
     ],
     "deny": [],
     "ask": []

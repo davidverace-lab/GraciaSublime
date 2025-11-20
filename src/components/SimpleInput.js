@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, TextInput, StyleSheet, Text } from 'react-native';
+import React, { useState } from 'react';
+import { View, TextInput, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors.js';
 
@@ -11,7 +11,14 @@ const SimpleInput = ({
         keyboardType = 'default',
         error = null,
         icon = null,
+        showPasswordToggle = false,
+        autoCapitalize = 'none',
+        editable = true,
+        maxLength,
+        ...props
 }) => {
+        const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+
         return (
                 <View style={styles.container}>
                         <View style={[styles.inputWrapper, error && styles.inputError]}>
@@ -29,11 +36,27 @@ const SimpleInput = ({
                                         placeholderTextColor="#999"
                                         value={value}
                                         onChangeText={onChangeText}
-                                        secureTextEntry={secureTextEntry}
+                                        secureTextEntry={secureTextEntry && !isPasswordVisible}
                                         keyboardType={keyboardType}
-                                        autoCapitalize="none"
-                                        editable={true}
+                                        autoCapitalize={autoCapitalize}
+                                        autoCorrect={false}
+                                        editable={editable}
+                                        maxLength={maxLength}
+                                        {...props}
                                 />
+                                {showPasswordToggle && (
+                                        <TouchableOpacity
+                                                style={styles.passwordToggle}
+                                                onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                                                activeOpacity={0.7}
+                                        >
+                                                <Ionicons
+                                                        name={isPasswordVisible ? 'eye-off-outline' : 'eye-outline'}
+                                                        size={22}
+                                                        color={COLORS.textGray}
+                                                />
+                                        </TouchableOpacity>
+                                )}
                         </View>
                         {error && (
                                 <View style={styles.errorContainer}>
@@ -75,6 +98,10 @@ const styles = StyleSheet.create({
         },
         inputWithIcon: {
                 paddingLeft: 0,
+        },
+        passwordToggle: {
+                padding: 5,
+                marginLeft: 5,
         },
         errorContainer: {
                 flexDirection: 'row',
