@@ -1,10 +1,11 @@
 /**
  * Servicio de Email
- * Maneja el envío de correos electrónicos usando Supabase Auth
+ * Maneja el envío de correos electrónicos usando Supabase Auth y EmailJS
  * Mucho más confiable y sin límites estrictos
  */
 
 import { supabase } from '../config/supabase';
+import { EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, EMAILJS_PUBLIC_KEY } from '@env';
 
 /**
  * Enviar email de reset de contraseña usando Supabase Auth
@@ -119,3 +120,56 @@ export const updatePassword = async (newPassword) => {
  * Configura las plantillas en:
  * https://supabase.com/dashboard/project/YOUR_PROJECT/auth/templates
  */
+
+/**
+ * Enviar email con datos bancarios para transferencia
+ * Usa EmailJS para envío personalizado
+ */
+export const sendBankTransferEmail = async (userEmail, userName, bankInfo, orderTotal) => {
+  try {
+    console.log('📧 Enviando datos bancarios a:', userEmail);
+
+    const emailResponse = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        service_id: EMAILJS_SERVICE_ID || 'service_1cqkwt9',
+        template_id: 'template_bank_transfer', // Necesitarás crear este template en EmailJS
+        user_id: EMAILJS_PUBLIC_KEY || '0GEWU_olXFLxsXNG5',
+        template_params: {
+          to_email: userEmail,
+          to_name: userName || 'Cliente',
+          bank_name: bankInfo.bank_name,
+          account_number: bankInfo.account_number,
+          clabe: bankInfo.clabe,
+          beneficiary: bankInfo.beneficiary,
+          reference: bankInfo.reference,
+          amount: orderTotal,
+        }
+      })
+    });
+
+    if (!emailResponse.ok) {
+      const errorData = await emailResponse.json();
+      console.error('⚠️ Error enviando email con EmailJS:', errorData);
+      throw new Error('Error al enviar email con datos bancarios');
+    }
+
+    console.log('✅ Email con datos bancarios enviado exitosamente');
+
+    return {
+      success: true,
+      message: 'Datos bancarios enviados por email'
+    };
+  } catch (error) {
+    console.error('❌ Error enviando email con datos bancarios:', error);
+
+    // No fallar todo el proceso si el email falla
+    return {
+      success: false,
+      error: error.message || 'Error al enviar email'
+    };
+  }
+};

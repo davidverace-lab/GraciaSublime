@@ -47,7 +47,18 @@ const toBase64 = (str) => {
  */
 const getAccessToken = async () => {
   try {
+    console.log('🔐 Obteniendo access token de PayPal...');
+    console.log('Client ID presente:', !!PAYPAL_CLIENT_ID);
+    console.log('Secret Key presente:', !!PAYPAL_SECRET_KEY);
+    console.log('Modo PayPal:', PAYPAL_MODE);
+    console.log('Base URL:', BASE_URL);
+
+    if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET_KEY) {
+      throw new Error('Credenciales de PayPal no configuradas. Verifica el archivo .env');
+    }
+
     const auth = toBase64(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET_KEY}`);
+    console.log('Auth string generado (length):', auth.length);
 
     const response = await axios({
       url: `${BASE_URL}/v1/oauth2/token`,
@@ -57,12 +68,26 @@ const getAccessToken = async () => {
         'Authorization': `Basic ${auth}`,
       },
       data: 'grant_type=client_credentials',
+      timeout: 10000, // 10 segundos de timeout
     });
 
+    console.log('✅ Access token obtenido exitosamente');
     return response.data.access_token;
   } catch (error) {
-    console.error('Error obteniendo access token de PayPal:', error.response?.data || error.message);
-    throw new Error('No se pudo autenticar con PayPal');
+    console.error('❌ Error obteniendo access token de PayPal:');
+    console.error('Error message:', error.message);
+    console.error('Response status:', error.response?.status);
+    console.error('Response data:', JSON.stringify(error.response?.data, null, 2));
+
+    if (error.response?.status === 401) {
+      throw new Error('Credenciales de PayPal inválidas. Verifica tu CLIENT_ID y SECRET_KEY.');
+    } else if (error.code === 'ECONNABORTED') {
+      throw new Error('Tiempo de espera agotado al conectar con PayPal. Verifica tu conexión a internet.');
+    } else if (!error.response) {
+      throw new Error('No se pudo conectar con PayPal. Verifica tu conexión a internet.');
+    }
+
+    throw new Error('No se pudo autenticar con PayPal: ' + (error.response?.data?.error_description || error.message));
   }
 };
 
@@ -74,21 +99,22 @@ const getAccessToken = async () => {
  */
 export const createPayPalOrder = async (amount, currency = 'USD', orderDetails = {}) => {
   try {
+    console.log('🔵 Iniciando creación de orden en PayPal...');
+    console.log('Monto:', amount);
+    console.log('Moneda:', currency);
+    console.log('Detalles:', orderDetails);
+
     const accessToken = await getAccessToken();
+    console.log('✅ Access token obtenido');
 
     const orderData = {
       intent: 'CAPTURE',
       purchase_units: [
         {
+          reference_id: orderDetails.order_id || `REF_${Date.now()}`,
           amount: {
             currency_code: currency,
             value: amount.toFixed(2),
-            breakdown: {
-              item_total: {
-                currency_code: currency,
-                value: amount.toFixed(2),
-              },
-            },
           },
           description: orderDetails.description || 'Compra en Gracia Sublime',
           custom_id: orderDetails.order_id || null,
@@ -96,12 +122,20 @@ export const createPayPalOrder = async (amount, currency = 'USD', orderDetails =
       ],
       application_context: {
         brand_name: 'Gracia Sublime',
-        landing_page: 'NO_PREFERENCE',
-        user_action: 'PAY_NOW',
-        return_url: 'graciasublime://payment-success',
-        cancel_url: 'graciasublime://payment-cancel',
+        locale: 'es-MX',
+        landing_page: 'LOGIN',
+        shipping_preference: 'NO_SHIPPING',
+        user_action: 'CONTINUE',
+        // IMPORTANTE: No especificar return_url ni cancel_url
+        // Esto hará que PayPal muestre su página de confirmación estándar
+        // El usuario deberá cerrar el navegador y nuestra app detectará el retorno
       },
     };
+
+    console.log('📋 Order Data:', JSON.stringify(orderData, null, 2));
+
+    console.log('📤 Enviando orden a PayPal...');
+    console.log('URL:', `${BASE_URL}/v2/checkout/orders`);
 
     const response = await axios({
       url: `${BASE_URL}/v2/checkout/orders`,
@@ -113,10 +147,35 @@ export const createPayPalOrder = async (amount, currency = 'USD', orderDetails =
       data: orderData,
     });
 
+    console.log('✅ Respuesta de PayPal recibida');
+    console.log('Order ID:', response.data.id);
+    console.log('Order Status:', response.data.status);
+    console.log('Order Response completo:', JSON.stringify(response.data, null, 2));
+
+    // Buscar el link de aprobación
+    const approvalLink = response.data.links.find(link => link.rel === 'approve');
+    console.log('Approval link encontrado:', approvalLink);
+
+    // Verificar si la orden fue creada correctamente
+    if (response.data.status !== 'CREATED') {
+      console.warn('⚠️ La orden no tiene status CREATED:', response.data.status);
+    }
+
+    if (!approvalLink || !approvalLink.href) {
+      console.error('❌ No se encontró approval URL en la respuesta de PayPal');
+      console.error('Links recibidos:', JSON.stringify(response.data.links, null, 2));
+      return {
+        success: false,
+        error: 'PayPal no devolvió una URL de aprobación válida',
+      };
+    }
+
+    console.log('✅ Approval URL:', approvalLink.href);
+
     return {
       success: true,
       orderId: response.data.id,
-      approvalUrl: response.data.links.find(link => link.rel === 'approve')?.href,
+      approvalUrl: approvalLink.href,
       data: response.data,
     };
   } catch (error) {

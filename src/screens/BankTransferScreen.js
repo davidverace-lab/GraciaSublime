@@ -16,6 +16,8 @@ import CustomButton from '../components/CustomButton.js';
 import { useCart } from '../context/CartContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { createOrder } from '../services/ordersService.js';
+import { sendBankTransferEmail } from '../services/emailService.js';
+import { sendBankTransferSMS } from '../services/smsService.js';
 
 const BankTransferScreen = ({ navigation, route }) => {
         const { selected_address, total } = route.params;
@@ -60,14 +62,31 @@ const BankTransferScreen = ({ navigation, route }) => {
         };
 
         const handle_submit = async () => {
+                // Si no hay comprobante, preguntar si desea continuar
                 if (!payment_proof) {
                         Alert.alert(
-                                'Comprobante requerido',
-                                'Por favor adjunta el comprobante de tu transferencia antes de continuar.'
+                                'Comprobante no adjuntado',
+                                'Puedes continuar y adjuntar el comprobante después, o adjuntarlo ahora. ¿Deseas continuar sin comprobante?',
+                                [
+                                        {
+                                                text: 'Cancelar',
+                                                style: 'cancel'
+                                        },
+                                        {
+                                                text: 'Continuar sin comprobante',
+                                                onPress: () => process_order()
+                                        }
+                                ],
+                                { cancelable: false }
                         );
                         return;
                 }
 
+                // Si hay comprobante, continuar directamente
+                process_order();
+        };
+
+        const process_order = async () => {
                 set_uploading(true);
 
                 try {
@@ -88,6 +107,35 @@ const BankTransferScreen = ({ navigation, route }) => {
 
                         console.log('✅ Pedido creado con pago por transferencia:', result.data);
 
+                        // Enviar email con datos bancarios
+                        console.log('📧 Enviando email con datos bancarios...');
+                        const emailResult = await sendBankTransferEmail(
+                                user.email,
+                                user.name,
+                                bank_info,
+                                total
+                        );
+
+                        if (emailResult.success) {
+                                console.log('✅ Email enviado exitosamente');
+                        } else {
+                                console.warn('⚠️ No se pudo enviar el email:', emailResult.error);
+                        }
+
+                        // Enviar SMS con datos bancarios
+                        console.log('📱 Enviando SMS con datos bancarios...');
+                        const smsResult = await sendBankTransferSMS(
+                                user.phone,
+                                bank_info,
+                                total
+                        );
+
+                        if (smsResult.success) {
+                                console.log('✅ SMS enviado exitosamente');
+                        } else {
+                                console.warn('⚠️ No se pudo enviar el SMS:', smsResult.error);
+                        }
+
                         // Limpiar carrito localmente
                         clear_cart();
 
@@ -96,7 +144,11 @@ const BankTransferScreen = ({ navigation, route }) => {
                                 index: 0,
                                 routes: [{
                                         name: 'TransferPendingScreen',
-                                        params: { order_id: result.data.order_id }
+                                        params: {
+                                                order_id: result.data.order_id,
+                                                email_sent: emailResult.success,
+                                                sms_sent: smsResult.success,
+                                        }
                                 }],
                         });
                 } catch (error) {
@@ -170,9 +222,10 @@ const BankTransferScreen = ({ navigation, route }) => {
                                         <Text style={styles.instruction_text}>
                                                 1. Realiza la transferencia por el monto exacto{'\n'}
                                                 2. Incluye la referencia en tu transferencia{'\n'}
-                                                3. Adjunta el comprobante de pago{'\n'}
-                                                4. Verificaremos tu pago en 24-48 horas{'\n'}
-                                                5. Recibirás una notificación cuando sea confirmado
+                                                3. Puedes adjuntar el comprobante ahora o después{'\n'}
+                                                4. Recibirás los datos bancarios por email y SMS{'\n'}
+                                                5. Verificaremos tu pago en 24-48 horas{'\n'}
+                                                6. Recibirás una notificación cuando sea confirmado
                                         </Text>
                                 </View>
 
@@ -180,7 +233,7 @@ const BankTransferScreen = ({ navigation, route }) => {
                                 <View style={styles.upload_card}>
                                         <View style={styles.card_header}>
                                                 <Ionicons name="cloud-upload" size={24} color={COLORS.primary} />
-                                                <Text style={styles.card_title}>Comprobante de Pago</Text>
+                                                <Text style={styles.card_title}>Comprobante de Pago (Opcional)</Text>
                                         </View>
 
                                         {payment_proof ? (
@@ -199,19 +252,24 @@ const BankTransferScreen = ({ navigation, route }) => {
                                                         </TouchableOpacity>
                                                 </View>
                                         ) : (
-                                                <TouchableOpacity
-                                                        style={styles.upload_button}
-                                                        onPress={handle_pick_image}
-                                                        activeOpacity={0.7}
-                                                >
-                                                        <Ionicons name="image" size={40} color={COLORS.primary} />
-                                                        <Text style={styles.upload_button_text}>
-                                                                Adjuntar comprobante
+                                                <View>
+                                                        <TouchableOpacity
+                                                                style={styles.upload_button}
+                                                                onPress={handle_pick_image}
+                                                                activeOpacity={0.7}
+                                                        >
+                                                                <Ionicons name="image" size={40} color={COLORS.primary} />
+                                                                <Text style={styles.upload_button_text}>
+                                                                        Adjuntar comprobante
+                                                                </Text>
+                                                                <Text style={styles.upload_button_subtext}>
+                                                                        Toca para seleccionar desde tu galería
+                                                                </Text>
+                                                        </TouchableOpacity>
+                                                        <Text style={styles.optional_note}>
+                                                                💡 Puedes continuar sin comprobante y adjuntarlo después en tu perfil
                                                         </Text>
-                                                        <Text style={styles.upload_button_subtext}>
-                                                                Toca para seleccionar desde tu galería
-                                                        </Text>
-                                                </TouchableOpacity>
+                                                </View>
                                         )}
                                 </View>
 
@@ -221,7 +279,7 @@ const BankTransferScreen = ({ navigation, route }) => {
                         {/* Footer con botón */}
                         <View style={styles.footer}>
                                 <CustomButton
-                                        title={uploading ? "Procesando..." : "Confirmar y Enviar"}
+                                        title={uploading ? "Procesando..." : payment_proof ? "Confirmar y Enviar" : "Continuar sin Comprobante"}
                                         on_press={handle_submit}
                                         disabled={uploading}
                                 />
@@ -365,6 +423,15 @@ const styles = StyleSheet.create({
                 fontSize: 12,
                 color: '#666',
                 marginTop: 5,
+        },
+        optional_note: {
+                fontSize: 13,
+                color: '#666',
+                marginTop: 15,
+                textAlign: 'center',
+                fontStyle: 'italic',
+                paddingHorizontal: 20,
+                lineHeight: 20,
         },
         preview_container: {
                 alignItems: 'center',

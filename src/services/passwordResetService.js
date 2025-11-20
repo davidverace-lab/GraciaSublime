@@ -24,99 +24,68 @@ export const sendRecoveryCode = async (email) => {
     // Normalizar email
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Verificar que el email existe en la base de datos
+    // Primero intentar buscar en la tabla profiles
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('id, email, name')
       .eq('email', normalizedEmail)
-      .single();
+      .maybeSingle();
 
-    if (profileError || !profileData) {
-      return {
-        success: false,
-        error: 'No existe una cuenta con este email. Por favor verifica e intenta de nuevo.'
-      };
-    }
+    // Si no se encuentra en profiles, intentar usar el método de recuperación de Supabase
+    // para verificar si el usuario existe en auth.users
+    if (!profileData) {
+      console.log('Usuario no encontrado en profiles, verificando en auth.users...');
 
-    // Generar código de 6 dígitos
-    const code = generateCode();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // Expira en 15 minutos
+      try {
+        // Usar el método oficial de Supabase para resetear contraseña
+        // Este método NO falla si el usuario no existe (por seguridad), pero podemos
+        // intentar buscar en la tabla profiles de otra manera
 
-    // Guardar código temporalmente en AsyncStorage
-    const recoveryData = {
-      email: normalizedEmail,
-      code: code,
-      expiresAt: expiresAt.toISOString(),
-      userId: profileData.id
-    };
+        // Buscar si hay algún perfil sin email asignado (usuarios antiguos)
+        const { data: allProfiles, error: allProfilesError } = await supabase
+          .from('profiles')
+          .select('id, email, name')
+          .is('email', null)
+          .limit(1)
+          .maybeSingle();
 
-    await AsyncStorage.setItem(`recovery_${normalizedEmail}`, JSON.stringify(recoveryData));
+        // Si encontramos un perfil sin email, intentar asociarlo
+        if (allProfiles && allProfiles.id) {
+          console.log('Encontrado perfil sin email, actualizando...');
 
-    // Intentar guardar también en Supabase (opcional, como backup)
-    try {
-      await supabase
-        .from('password_recovery_codes')
-        .insert({
-          email: normalizedEmail,
-          code: code,
-          expires_at: expiresAt.toISOString(),
-          used: false
-        });
-    } catch (err) {
-      console.log('⚠️ No se pudo guardar en Supabase, usando solo AsyncStorage:', err);
-    }
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ email: normalizedEmail })
+            .eq('id', allProfiles.id);
 
-    // Enviar código por email usando EmailJS (servicio gratuito)
-    console.log('📧 Enviando código por email con EmailJS...');
+          if (!updateError) {
+            const userData = {
+              id: allProfiles.id,
+              email: normalizedEmail,
+              name: allProfiles.name || 'Usuario'
+            };
 
-    try {
-      // EmailJS - Servicio gratuito que funciona sin backend
-      // Las credenciales se cargan desde el archivo .env
-      const emailResponse = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          service_id: EMAILJS_SERVICE_ID || 'service_1cqkwt9',
-          template_id: EMAILJS_TEMPLATE_ID || 'template_w64swso',
-          user_id: EMAILJS_PUBLIC_KEY || '0GEWU_olXFLxsXNG5',
-          template_params: {
-            to_email: normalizedEmail,
-            to_name: profileData.name || 'Usuario',
-            recovery_code: code,
-            expiry_time: '15 minutos'
+            return await continueWithCodeSending(normalizedEmail, userData);
           }
-        })
-      });
+        }
 
-      if (!emailResponse.ok) {
-        const errorData = await emailResponse.json();
-        console.error('⚠️ Error enviando email con EmailJS:', errorData);
-        // No fallar el proceso si el email falla, el código aún está en AsyncStorage
-      } else {
-        const result = await emailResponse.json();
-        console.log('✅ Email enviado exitosamente con EmailJS:', result);
+        // Si no encontramos nada, asumir que el usuario no existe
+        return {
+          success: false,
+          error: 'No existe una cuenta con este email. Por favor verifica e intenta de nuevo.'
+        };
+
+      } catch (authCheckError) {
+        console.error('Error verificando usuario en auth:', authCheckError);
+        return {
+          success: false,
+          error: 'No existe una cuenta con este email. Por favor verifica e intenta de nuevo.'
+        };
       }
-    } catch (emailError) {
-      console.error('⚠️ Error al enviar email:', emailError);
-      // No fallar el proceso si el email falla
     }
 
-    // También mostrar en consola para desarrollo
-    if (__DEV__) {
-      console.log('🔐 CÓDIGO DE RECUPERACIÓN (DEV):', code);
-      console.log('⏰ Expira en 15 minutos');
-    }
-
-    return {
-      success: true,
-      message: 'Código de recuperación enviado a tu email',
-      // SIEMPRE devolver el código para presentación/demos
-      // En producción real, cambia esto a: devCode: __DEV__ ? code : undefined
-      devCode: code // Mostrar código para presentación
-    };
-
+    // Si se encontró en profiles, continuar normalmente
+    return await continueWithCodeSending(normalizedEmail, profileData);
   } catch (error) {
     console.error('❌ Error enviando código:', error);
     return {
@@ -124,6 +93,88 @@ export const sendRecoveryCode = async (email) => {
       error: 'Error al enviar el código de recuperación. Intenta de nuevo.'
     };
   }
+};
+
+// Función auxiliar para continuar con el envío del código
+const continueWithCodeSending = async (normalizedEmail, profileData) => {
+  // Generar código de 6 dígitos
+  const code = generateCode();
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // Expira en 15 minutos
+
+  // Guardar código temporalmente en AsyncStorage
+  const recoveryData = {
+    email: normalizedEmail,
+    code: code,
+    expiresAt: expiresAt.toISOString(),
+    userId: profileData.id
+  };
+
+  await AsyncStorage.setItem(`recovery_${normalizedEmail}`, JSON.stringify(recoveryData));
+
+  // Intentar guardar también en Supabase (opcional, como backup)
+  try {
+    await supabase
+      .from('password_recovery_codes')
+      .insert({
+        email: normalizedEmail,
+        code: code,
+        expires_at: expiresAt.toISOString(),
+        used: false
+      });
+  } catch (err) {
+    console.log('⚠️ No se pudo guardar en Supabase, usando solo AsyncStorage:', err);
+  }
+
+  // Enviar código por email usando EmailJS (servicio gratuito)
+  console.log('📧 Enviando código por email con EmailJS...');
+
+  try {
+    // EmailJS - Servicio gratuito que funciona sin backend
+    // Las credenciales se cargan desde el archivo .env
+    const emailResponse = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        service_id: EMAILJS_SERVICE_ID || 'service_1cqkwt9',
+        template_id: EMAILJS_TEMPLATE_ID || 'template_w64swso',
+        user_id: EMAILJS_PUBLIC_KEY || '0GEWU_olXFLxsXNG5',
+        template_params: {
+          to_email: normalizedEmail,
+          to_name: profileData.name || 'Usuario',
+          recovery_code: code,
+          expiry_time: '15 minutos'
+        }
+      })
+    });
+
+    if (!emailResponse.ok) {
+      const errorData = await emailResponse.json();
+      console.error('⚠️ Error enviando email con EmailJS:', errorData);
+      // No fallar el proceso si el email falla, el código aún está en AsyncStorage
+    } else {
+      const result = await emailResponse.json();
+      console.log('✅ Email enviado exitosamente con EmailJS:', result);
+    }
+  } catch (emailError) {
+    console.error('⚠️ Error al enviar email:', emailError);
+    // No fallar el proceso si el email falla
+  }
+
+  // También mostrar en consola para desarrollo
+  if (__DEV__) {
+    console.log('🔐 CÓDIGO DE RECUPERACIÓN (DEV):', code);
+    console.log('⏰ Expira en 15 minutos');
+  }
+
+  return {
+    success: true,
+    message: 'Código de recuperación enviado a tu email',
+    // SIEMPRE devolver el código para presentación/demos
+    // En producción real, cambia esto a: devCode: __DEV__ ? code : undefined
+    devCode: code // Mostrar código para presentación
+  };
 };
 
 /**

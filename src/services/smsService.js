@@ -231,3 +231,59 @@ export const cleanupExpiredCodes = async () => {
     return { success: false, error: error.message };
   }
 };
+
+/**
+ * Enviar SMS con datos bancarios para transferencia
+ * NOTA: Esta es una implementación simulada para desarrollo
+ * En producción, integrar con Twilio, AWS SNS u otro servicio de SMS
+ */
+export const sendBankTransferSMS = async (phoneNumber, bankInfo, orderTotal) => {
+  try {
+    console.log('📱 Enviando SMS con datos bancarios a:', phoneNumber);
+
+    // Formatear mensaje SMS
+    const smsMessage = `
+Gracia Sublime - Datos de Transferencia
+
+Total: $${orderTotal}
+
+Banco: ${bankInfo.bank_name}
+Cuenta: ${bankInfo.account_number}
+CLABE: ${bankInfo.clabe}
+Beneficiario: ${bankInfo.beneficiary}
+Referencia: ${bankInfo.reference}
+
+Envía tu comprobante a la app.
+    `.trim();
+
+    console.log('📄 Mensaje SMS:', smsMessage);
+
+    // SIMULACIÓN: En producción, aquí iría la integración con Twilio o similar
+    // Por ahora solo simulamos un delay y retornamos éxito
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    console.log('✅ SMS simulado enviado exitosamente');
+
+    // En dev mode, mostrar el mensaje en consola
+    if (__DEV__) {
+      console.log('🔔 [SIMULATED SMS]');
+      console.log(`📱 To: ${phoneNumber}`);
+      console.log(`💬 Message:\n${smsMessage}`);
+    }
+
+    return {
+      success: true,
+      message: 'SMS con datos bancarios enviado',
+      simulated: true, // Indicar que es simulado
+    };
+  } catch (error) {
+    console.error('❌ Error enviando SMS:', error);
+
+    // No fallar todo el proceso si el SMS falla
+    return {
+      success: false,
+      error: error.message || 'Error al enviar SMS',
+      simulated: true,
+    };
+  }
+};

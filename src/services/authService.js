@@ -58,6 +58,7 @@ export const signUp = async (email, password, name, phone) => {
         data: {
           name: name.trim(),
           phone: normalizedPhone,
+          email: normalizedEmail, // Incluir email en metadata para el trigger
         }
       }
     });
@@ -163,6 +164,28 @@ export const signIn = async (emailOrPhone, password) => {
         error.message = 'Por favor confirma tu email antes de iniciar sesión. Revisa tu bandeja de entrada.';
       }
       throw error;
+    }
+
+    // Si el login fue exitoso, verificar y sincronizar el email en el perfil si falta
+    if (data?.user?.id && data?.user?.email) {
+      const userEmail = data.user.email.toLowerCase();
+
+      // Verificar si el perfil tiene el email
+      const { data: profileCheck, error: profileCheckError } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .eq('id', data.user.id)
+        .maybeSingle();
+
+      // Si el perfil existe pero no tiene email, o el email está desactualizado, actualizarlo
+      if (profileCheck && (!profileCheck.email || profileCheck.email !== userEmail)) {
+        console.log('Sincronizando email en perfil después del login...');
+        await supabase
+          .from('profiles')
+          .update({ email: userEmail })
+          .eq('id', data.user.id);
+        console.log('✅ Email sincronizado en perfil');
+      }
     }
 
     return { data, error: null };
@@ -274,4 +297,41 @@ export const onAuthStateChange = (callback) => {
   return supabase.auth.onAuthStateChange((event, session) => {
     callback(event, session);
   });
+};
+
+// Sincronizar email de auth.users a profiles para un usuario específico
+export const syncUserEmailToProfile = async (email) => {
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Primero intentar obtener el usuario actual
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.log('No se pudo obtener el usuario actual para sincronización');
+      return { success: false, error: 'Usuario no encontrado' };
+    }
+
+    // Verificar si el email coincide
+    if (user.email?.toLowerCase() === normalizedEmail) {
+      // Actualizar el perfil con el email
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ email: normalizedEmail })
+        .eq('id', user.id);
+
+      if (updateError) {
+        console.error('Error actualizando email en perfil:', updateError);
+        return { success: false, error: updateError.message };
+      }
+
+      console.log('✅ Email sincronizado exitosamente en perfil');
+      return { success: true };
+    }
+
+    return { success: false, error: 'Email no coincide con usuario actual' };
+  } catch (error) {
+    console.error('Error sincronizando email:', error);
+    return { success: false, error: error.message };
+  }
 };
