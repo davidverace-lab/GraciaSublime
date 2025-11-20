@@ -2,10 +2,13 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors.js';
+import { useCart } from '../context/CartContext.js';
 
 const { width } = Dimensions.get('window');
 
 const CustomTabBar = ({ state, descriptors, navigation }) => {
+        const { get_item_count } = useCart();
+        const cart_count = get_item_count();
         const tabWidth = width / state.routes.length;
         const translateX = useRef(new Animated.Value(0)).current;
         const scaleAnims = useRef(state.routes.map(() => new Animated.Value(1))).current;
@@ -105,19 +108,13 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
                                                                 color={isFocused ? COLORS.primary : '#999'}
                                                         />
 
-                                                        {/* Dot indicator cuando está activo */}
-                                                        {isFocused && (
-                                                                <Animated.View
-                                                                        style={[
-                                                                                styles.activeDot,
-                                                                                {
-                                                                                        opacity: scaleAnims[index].interpolate({
-                                                                                                inputRange: [1, 1.2],
-                                                                                                outputRange: [0, 1],
-                                                                                        }),
-                                                                                },
-                                                                        ]}
-                                                                />
+                                                        {/* Badge de contador para el carrito */}
+                                                        {route.name === 'Cart' && cart_count > 0 && (
+                                                                <View style={styles.badge}>
+                                                                        <Text style={styles.badgeText}>
+                                                                                {cart_count > 99 ? '99+' : cart_count}
+                                                                        </Text>
+                                                                </View>
                                                         )}
                                                 </Animated.View>
 
@@ -168,14 +165,6 @@ const styles = StyleSheet.create({
                 alignItems: 'center',
                 marginBottom: 4,
         },
-        activeDot: {
-                position: 'absolute',
-                bottom: -8,
-                width: 4,
-                height: 4,
-                borderRadius: 2,
-                backgroundColor: COLORS.primary,
-        },
         label: {
                 fontSize: 12,
                 fontWeight: '600',
@@ -185,6 +174,25 @@ const styles = StyleSheet.create({
         },
         labelUnfocused: {
                 color: '#999',
+        },
+        badge: {
+                position: 'absolute',
+                top: -4,
+                right: -10,
+                backgroundColor: '#FF3B30',
+                borderRadius: 10,
+                minWidth: 18,
+                height: 18,
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingHorizontal: 4,
+                borderWidth: 2,
+                borderColor: COLORS.white,
+        },
+        badgeText: {
+                color: COLORS.white,
+                fontSize: 10,
+                fontWeight: 'bold',
         },
 });
 

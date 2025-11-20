@@ -67,17 +67,17 @@ const CartScreen = ({ navigation }) => {
                                                 {/* Resumen de costos */}
                                                 <View style={styles.summary_container}>
                                                         <View style={styles.summary_row}>
-                                                                <Text style={styles.summary_label}>Subtotal</Text>
-                                                                <Text style={styles.summary_value}>${get_total()}</Text>
+                                                                <Text style={styles.summary_label}>Subtotal ({cart_items.length} {cart_items.length === 1 ? 'item' : 'items'})</Text>
+                                                                <Text style={styles.summary_value}>${get_total().toFixed(2)}</Text>
                                                         </View>
                                                         <View style={styles.summary_row}>
-                                                                <Text style={styles.summary_label}>Envío</Text>
-                                                                <Text style={styles.summary_value}>$50</Text>
+                                                                <Text style={styles.summary_label}>Envío (único)</Text>
+                                                                <Text style={styles.summary_value}>$50.00</Text>
                                                         </View>
                                                         <View style={styles.divider} />
                                                         <View style={styles.total_container}>
-                                                                <Text style={styles.total_label}>Total</Text>
-                                                                <Text style={styles.total_amount}>${get_total() + 50}</Text>
+                                                                <Text style={styles.total_label}>Total a Pagar</Text>
+                                                                <Text style={styles.total_amount}>${(get_total() + 50).toFixed(2)}</Text>
                                                         </View>
                                                 </View>
 

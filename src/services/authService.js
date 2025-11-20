@@ -46,14 +46,17 @@ export const signUp = async (email, password, name, phone) => {
 
     // 3. Crear usuario en auth.users
     // Supabase enviará automáticamente un email de verificación
+    // El trigger on_auth_user_created creará automáticamente el perfil
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: {
         // Configurar email de verificación
         emailRedirectTo: 'gracasublime://verify-email',
+        // Los datos en 'data' se guardan en raw_user_meta_data
+        // y el trigger los usa para crear el perfil
         data: {
-          name: name,
+          name: name.trim(),
           phone: normalizedPhone,
         }
       }
@@ -70,16 +73,39 @@ export const signUp = async (email, password, name, phone) => {
       throw authError;
     }
 
-    // 4. Actualizar perfil con información adicional
+    // 4. El perfil se crea automáticamente con el trigger on_auth_user_created
+    // Ya no necesitamos hacer update manual
+    // Solo esperamos un momento para asegurar que el trigger se ejecute
     if (authData.user) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ name, phone: normalizedPhone })
-        .eq('id', authData.user.id);
+      // Pequeña pausa para asegurar que el trigger termine
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      if (profileError) {
-        console.error('Error actualizando perfil:', profileError);
-        // No lanzar error aquí, el usuario ya fue creado
+      // Verificar que el perfil se haya creado correctamente
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+
+      if (profileError || !profile) {
+        console.error('⚠️ El perfil no se creó automáticamente, creándolo manualmente:', profileError);
+        // Fallback: crear perfil manualmente si el trigger falló
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authData.user.id,
+            name: name.trim(),
+            phone: normalizedPhone,
+            email: normalizedEmail,
+          });
+
+        if (insertError) {
+          console.error('❌ Error creando perfil manualmente:', insertError);
+        } else {
+          console.log('✅ Perfil creado manualmente exitosamente');
+        }
+      } else {
+        console.log('✅ Perfil creado automáticamente:', profile);
       }
     }
 

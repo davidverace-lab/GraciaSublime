@@ -40,12 +40,14 @@ export const CartProvider = ({ children }) => {
         };
 
         // Agregar producto al carrito
-        const add_to_cart = async (product, quantity = 1) => {
+        const add_to_cart = async (product, quantity = 1, customization = null) => {
                 try {
                         if (!is_authenticated || !user?.id) {
                                 console.error('Usuario no autenticado');
                                 return { success: false, error: 'Debes iniciar sesión para agregar al carrito' };
                         }
+
+                        console.log('🛒 CartContext - Personalización recibida:', customization);
 
                         set_loading(true);
 
@@ -53,8 +55,12 @@ export const CartProvider = ({ children }) => {
                         const variant_id = product.variant_id || null;
                         const product_id = product.product_id || product.id;
 
-                        const { data, error } = await addToCart(user.id, product_id, quantity, variant_id);
+                        console.log('📤 Enviando a cartService:', { user_id: user.id, product_id, quantity, variant_id, customization });
+
+                        const { data, error } = await addToCart(user.id, product_id, quantity, variant_id, customization);
                         if (error) throw error;
+
+                        console.log('📥 Respuesta de cartService:', data);
 
                         // Recargar carrito para obtener datos actualizados
                         await load_cart();

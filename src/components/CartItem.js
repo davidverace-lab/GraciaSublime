@@ -1,14 +1,21 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors.js';
 import QuantityCounter from './QuantityCounter.js';
+import CartItemDetailModal from './CartItemDetailModal.js';
 
 const CartItem = ({ item, on_update_quantity, on_remove }) => {
+        const [showDetailModal, setShowDetailModal] = useState(false);
         const slideAnim = useRef(new Animated.Value(-50)).current;
         const fadeAnim = useRef(new Animated.Value(0)).current;
 
         useEffect(() => {
+                console.log('🛒 CartItem - Item recibido:', item);
+                console.log('🖼️ CartItem - custom_image:', item.custom_image);
+                console.log('🎨 CartItem - custom_design:', item.custom_design);
+                console.log('📝 CartItem - design_name:', item.design_name);
+
                 Animated.parallel([
                         Animated.spring(slideAnim, {
                                 toValue: 0,
@@ -25,10 +32,12 @@ const CartItem = ({ item, on_update_quantity, on_remove }) => {
         }, []);
 
         const handle_increment = () => {
+                console.log('➕ Incrementando cantidad:', item.quantity + 1);
                 on_update_quantity(item.quantity + 1);
         };
 
         const handle_decrement = () => {
+                console.log('➖ Decrementando cantidad:', item.quantity - 1);
                 if (item.quantity > 1) {
                         on_update_quantity(item.quantity - 1);
                 } else {
@@ -36,107 +45,144 @@ const CartItem = ({ item, on_update_quantity, on_remove }) => {
                 }
         };
 
+        const handle_press_product = () => {
+                console.log('🔍 Abriendo detalles del producto en el carrito');
+                setShowDetailModal(true);
+        };
+
         return (
-                <Animated.View
-                        style={[
-                                styles.container,
-                                {
-                                        opacity: fadeAnim,
-                                        transform: [{ translateX: slideAnim }],
-                                }
-                        ]}
-                >
-                        {/* Imagen del producto */}
-                        <View style={styles.image_placeholder}>
-                                {item.products?.customImage ? (
-                                        <Image
-                                                source={{ uri: item.products.customImage }}
-                                                style={styles.custom_image}
-                                                resizeMode="cover"
-                                        />
-                                ) : item.products?.customDesign ? (
-                                        <View style={[styles.design_icon_container, { backgroundColor: item.products.customDesign.color }]}>
-                                                <Ionicons
-                                                        name={item.products.customDesign.icon}
-                                                        size={30}
-                                                        color={COLORS.white}
-                                                />
-                                        </View>
-                                ) : item.products?.image_url ? (
-                                        <Image
-                                                source={{ uri: item.products.image_url }}
-                                                style={styles.product_image}
-                                                resizeMode="cover"
-                                        />
-                                ) : item.products?.image ? (
-                                        <Image
-                                                source={item.products.image}
-                                                style={styles.product_image}
-                                                resizeMode="cover"
-                                        />
-                                ) : (
-                                        <View style={styles.placeholder_icon}>
-                                                <Ionicons name="cafe" size={40} color={COLORS.primary} />
-                                        </View>
-                                )}
-                        </View>
-
-                        <View style={styles.content}>
-                                <Text style={styles.name} numberOfLines={2}>{item.products?.name?.toUpperCase()}</Text>
-                                {(item.products?.customImage || item.products?.customDesign) && (
-                                        <View style={styles.customization_badge}>
-                                                <Ionicons name="brush" size={12} color={COLORS.primary} />
-                                                <Text style={styles.customization_text}>Personalizada</Text>
-                                        </View>
-                                )}
-
-                                {/* Mostrar talla y género si existen */}
-                                {item.product_variants && (
-                                        <View style={styles.variant_info_container}>
-                                                {item.product_variants.gender && (
-                                                        <View style={styles.variant_badge}>
+                <>
+                        <Animated.View
+                                style={[
+                                        styles.container,
+                                        {
+                                                opacity: fadeAnim,
+                                                transform: [{ translateX: slideAnim }],
+                                        }
+                                ]}
+                        >
+                                <TouchableOpacity
+                                        onPress={handle_press_product}
+                                        activeOpacity={0.7}
+                                        style={styles.product_info_container}
+                                >
+                                        {/* Imagen del producto o personalización */}
+                                        <View style={styles.image_placeholder}>
+                                                {item.custom_image ? (
+                                                        <Image
+                                                                source={{ uri: item.custom_image }}
+                                                                style={styles.custom_image}
+                                                                resizeMode="cover"
+                                                        />
+                                                ) : item.custom_design ? (
+                                                        <View style={[styles.design_icon_container, { backgroundColor: item.custom_design.color || COLORS.primary }]}>
                                                                 <Ionicons
-                                                                        name={item.product_variants.gender === 'male' ? 'male' : 'female'}
-                                                                        size={12}
-                                                                        color={COLORS.primary}
+                                                                        name={item.custom_design.icon || 'color-palette'}
+                                                                        size={30}
+                                                                        color={COLORS.white}
                                                                 />
-                                                                <Text style={styles.variant_text}>
-                                                                        {item.product_variants.gender === 'male' ? 'Hombre' : 'Mujer'}
-                                                                </Text>
+                                                        </View>
+                                                ) : item.products?.image_url ? (
+                                                        <Image
+                                                                source={{ uri: item.products.image_url }}
+                                                                style={styles.product_image}
+                                                                resizeMode="cover"
+                                                        />
+                                                ) : item.products?.image ? (
+                                                        <Image
+                                                                source={item.products.image}
+                                                                style={styles.product_image}
+                                                                resizeMode="cover"
+                                                        />
+                                                ) : (
+                                                        <View style={styles.placeholder_icon}>
+                                                                <Ionicons name="cafe" size={40} color={COLORS.primary} />
                                                         </View>
                                                 )}
-                                                <View style={styles.variant_badge}>
-                                                        <Ionicons name="resize-outline" size={12} color={COLORS.primary} />
-                                                        <Text style={styles.variant_text}>
-                                                                Talla: {item.product_variants.size?.toUpperCase()}
-                                                        </Text>
-                                                </View>
                                         </View>
-                                )}
 
-                                {item.products?.category && (
-                                        <Text style={styles.category_text}>{item.products.category}</Text>
-                                )}
-                                <View style={styles.price_row}>
-                                        <Text style={styles.price}>${item.products?.price}</Text>
-                                        <Text style={styles.unit_text}>c/u</Text>
+                                        <View style={styles.content}>
+                                                <Text style={styles.name} numberOfLines={2}>{item.products?.name?.toUpperCase()}</Text>
+
+                                                {/* Mostrar información de personalización */}
+                                                {(item.custom_image || item.custom_design || item.design_name) && (
+                                                        <View style={styles.customization_section}>
+                                                                <View style={styles.customization_badge}>
+                                                                        <Ionicons name="brush" size={12} color={COLORS.primary} />
+                                                                        <Text style={styles.customization_text}>Personalizada</Text>
+                                                                </View>
+
+                                                                {item.design_name && (
+                                                                        <Text style={styles.design_name_text}>
+                                                                                Diseño: {item.design_name}
+                                                                        </Text>
+                                                                )}
+
+                                                                {item.custom_image && (
+                                                                        <View style={styles.image_info}>
+                                                                                <Ionicons name="image" size={12} color={COLORS.textDark} />
+                                                                                <Text style={styles.image_info_text}>Imagen personalizada</Text>
+                                                                        </View>
+                                                                )}
+                                                        </View>
+                                                )}
+
+                                                {/* Mostrar talla y género si existen */}
+                                                {item.product_variants && (
+                                                        <View style={styles.variant_info_container}>
+                                                                {item.product_variants.gender && (
+                                                                        <View style={styles.variant_badge}>
+                                                                                <Ionicons
+                                                                                        name={item.product_variants.gender === 'male' ? 'male' : 'female'}
+                                                                                        size={12}
+                                                                                        color={COLORS.primary}
+                                                                                />
+                                                                                <Text style={styles.variant_text}>
+                                                                                        {item.product_variants.gender === 'male' ? 'Hombre' : 'Mujer'}
+                                                                                </Text>
+                                                                        </View>
+                                                                )}
+                                                                <View style={styles.variant_badge}>
+                                                                        <Ionicons name="resize-outline" size={12} color={COLORS.primary} />
+                                                                        <Text style={styles.variant_text}>
+                                                                                Talla: {item.product_variants.size?.toUpperCase()}
+                                                                        </Text>
+                                                                </View>
+                                                        </View>
+                                                )}
+
+                                                {item.products?.category && (
+                                                        <Text style={styles.category_text}>{item.products.category}</Text>
+                                                )}
+                                                <View style={styles.price_row}>
+                                                        <Text style={styles.price}>${item.products?.price}</Text>
+                                                        <Text style={styles.unit_text}>c/u</Text>
+                                                </View>
+                                                {item.quantity > 1 && (
+                                                        <Text style={styles.subtotal_text}>
+                                                                Subtotal: ${(item.products?.price || 0) * item.quantity}
+                                                        </Text>
+                                                )}
+                                        </View>
+                                </TouchableOpacity>
+
+                                <View style={styles.quantity_container}>
+                                        <QuantityCounter
+                                                quantity={item.quantity}
+                                                on_increment={handle_increment}
+                                                on_decrement={handle_decrement}
+                                                variant="small"
+                                        />
                                 </View>
-                                {item.quantity > 1 && (
-                                        <Text style={styles.subtotal_text}>
-                                                Subtotal: ${(item.products?.price || 0) * item.quantity}
-                                        </Text>
-                                )}
-                        </View>
+                        </Animated.View>
 
-                        <View style={styles.quantity_container}>
-                                <QuantityCounter
-                                        quantity={item.quantity}
-                                        on_increment={handle_increment}
-                                        on_decrement={handle_decrement}
-                                        variant="small"
-                                />
-                        </View>
-                </Animated.View>
+                        {/* Modal de detalles del producto */}
+                        <CartItemDetailModal
+                                visible={showDetailModal}
+                                item={item}
+                                onClose={() => setShowDetailModal(false)}
+                        />
+                </>
         );
 };
 
@@ -155,6 +201,11 @@ const styles = StyleSheet.create({
                 elevation: 5,
                 borderWidth: 1,
                 borderColor: '#f0f0f0',
+        },
+        product_info_container: {
+                flexDirection: 'row',
+                flex: 1,
+                alignItems: 'center',
         },
         image_placeholder: {
                 width: 85,
@@ -204,6 +255,9 @@ const styles = StyleSheet.create({
                 textTransform: 'capitalize',
                 marginBottom: 4,
         },
+        customization_section: {
+                marginBottom: 5,
+        },
         customization_badge: {
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -212,13 +266,30 @@ const styles = StyleSheet.create({
                 paddingVertical: 3,
                 borderRadius: 10,
                 alignSelf: 'flex-start',
-                marginBottom: 5,
+                marginBottom: 4,
         },
         customization_text: {
                 fontSize: 11,
                 color: COLORS.primary,
                 fontWeight: '600',
                 marginLeft: 4,
+        },
+        design_name_text: {
+                fontSize: 11,
+                color: COLORS.textDark,
+                fontWeight: '500',
+                marginBottom: 3,
+        },
+        image_info: {
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                marginTop: 2,
+        },
+        image_info_text: {
+                fontSize: 10,
+                color: COLORS.textDark,
+                fontStyle: 'italic',
         },
         price_row: {
                 flexDirection: 'row',

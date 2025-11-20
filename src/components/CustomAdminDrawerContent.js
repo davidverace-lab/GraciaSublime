@@ -5,6 +5,7 @@ import {
         StyleSheet,
         TouchableOpacity,
         Alert,
+        Platform,
 } from 'react-native';
 import { DrawerContentScrollView } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,26 +15,40 @@ import { useAuth } from '../context/AuthContext.js';
 const CustomAdminDrawerContent = (props) => {
         const { user, profile, logout, view_mode, toggle_view_mode } = useAuth();
 
-        const handle_logout = () => {
-                Alert.alert(
-                        'Cerrar Sesión',
-                        '¿Estás seguro de que deseas cerrar sesión?',
-                        [
-                                { text: 'Cancelar', style: 'cancel' },
-                                {
-                                        text: 'Cerrar Sesión',
-                                        style: 'destructive',
-                                        onPress: async () => {
-                                                await logout();
-                                                // Navegar directamente a Login y limpiar stack
-                                                props.navigation.reset({
-                                                        index: 0,
-                                                        routes: [{ name: 'Login' }],
-                                                });
+        const handle_logout = async () => {
+                // En web, usar confirm nativo del navegador
+                // En móvil, usar Alert.alert de React Native
+                if (Platform.OS === 'web') {
+                        const confirmed = window.confirm('¿Estás seguro de que deseas cerrar sesión?');
+                        if (confirmed) {
+                                await logout();
+                                // Navegar directamente a Login y limpiar stack
+                                props.navigation.reset({
+                                        index: 0,
+                                        routes: [{ name: 'Login' }],
+                                });
+                        }
+                } else {
+                        Alert.alert(
+                                'Cerrar Sesión',
+                                '¿Estás seguro de que deseas cerrar sesión?',
+                                [
+                                        { text: 'Cancelar', style: 'cancel' },
+                                        {
+                                                text: 'Cerrar Sesión',
+                                                style: 'destructive',
+                                                onPress: async () => {
+                                                        await logout();
+                                                        // Navegar directamente a Login y limpiar stack
+                                                        props.navigation.reset({
+                                                                index: 0,
+                                                                routes: [{ name: 'Login' }],
+                                                        });
+                                                },
                                         },
-                                },
-                        ]
-                );
+                                ]
+                        );
+                }
         };
 
         const handle_switch_to_client = () => {
@@ -127,11 +142,16 @@ const styles = StyleSheet.create({
                 alignItems: 'center',
                 borderWidth: 3,
                 borderColor: COLORS.white,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-                elevation: 4,
+                ...(Platform.OS === 'web'
+                        ? { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.2)' }
+                        : {
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.2,
+                                shadowRadius: 4,
+                                elevation: 4,
+                        }
+                ),
         },
         user_name: {
                 fontSize: 20,
@@ -168,11 +188,16 @@ const styles = StyleSheet.create({
                 backgroundColor: COLORS.primary,
                 borderRadius: 16,
                 padding: 18,
-                shadowColor: COLORS.primary,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.4,
-                shadowRadius: 12,
-                elevation: 8,
+                ...(Platform.OS === 'web'
+                        ? { boxShadow: `0px 4px 12px ${COLORS.primary}66` }
+                        : {
+                                shadowColor: COLORS.primary,
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.4,
+                                shadowRadius: 12,
+                                elevation: 8,
+                        }
+                ),
                 borderWidth: 3,
                 borderColor: COLORS.white,
         },

@@ -22,7 +22,6 @@ import { useCart } from '../context/CartContext.js';
 import { useFavorites } from '../context/FavoritesContext.js';
 import { PRODUCTS } from '../data/products.js';
 import ProductCard from '../components/ProductCard.js';
-import ImageEditorModal from '../components/ImageEditorModal.js';
 import { PREDESIGNED_TEMPLATES, DESIGN_CATEGORIES } from '../data/predesignedTemplates.js';
 import { getVariantsByGender, findVariant } from '../services/productVariantsService.js';
 
@@ -78,16 +77,13 @@ const MOCK_REVIEWS = [
 
 const ProductDetailScreen = ({ navigation, route }) => {
     const { product } = route.params;
-    const { add_to_cart } = useCart();
+    const { add_to_cart, get_item_count } = useCart();
     const { is_favorite, toggle_favorite } = useFavorites();
     const [quantity, set_quantity] = useState(1);
     const [selected_design, set_selected_design] = useState(null);
     const [show_design_modal, set_show_design_modal] = useState(false);
     const [show_reviews_modal, set_show_reviews_modal] = useState(false);
     const [custom_image, set_custom_image] = useState(null);
-    const [temp_image, set_temp_image] = useState(null);
-    const [show_image_editor, set_show_image_editor] = useState(false);
-    const [show_save_confirmation, set_show_save_confirmation] = useState(false);
     const [search_query, set_search_query] = useState('');
     const [selected_template, set_selected_template] = useState(null);
     const [template_category, set_template_category] = useState('all');
@@ -289,17 +285,27 @@ const ProductDetailScreen = ({ navigation, route }) => {
                 ? product.price + selected_template.price
                 : product.price;
 
-            // Agregar al carrito (solo una vez, la cantidad se maneja en el backend)
+            // Preparar objeto de personalización
+            const customization = {
+                custom_image: custom_image || null,
+                custom_design: selected_design || null,
+                design_name: selected_design?.name || selected_template?.name || null,
+            };
+
+            console.log('📦 Agregando al carrito con personalización:', customization);
+            console.log('🖼️ Imagen personalizada:', custom_image);
+            console.log('🎨 Diseño seleccionado:', selected_design);
+
+            // Agregar al carrito con personalización
             const result = await add_to_cart({
                 ...product,
                 price: final_price,
-                customDesign: selected_design,
-                customTemplate: selected_template,
-                customImage: custom_image,
                 variant_id: selected_variant?.variant_id,
                 selected_size,
                 selected_gender: selected_gender === 'unisex' ? null : selected_gender,
-            }, quantity);
+            }, quantity, customization);
+
+            console.log('✅ Resultado de agregar al carrito:', result);
 
             if (result.success) {
                 Alert.alert(
@@ -366,36 +372,35 @@ const ProductDetailScreen = ({ navigation, route }) => {
             return;
         }
 
-        // Abrir selector de imágenes
+        // Abrir selector de imágenes con filtro para solo JPG y PNG
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
             allowsEditing: false,
             quality: 1,
+            // Nota: En web también se filtrarán los tipos de archivo
         });
 
         if (!result.canceled) {
-            set_temp_image(result.assets[0].uri);
-            set_show_image_editor(true);
+            const imageUri = result.assets[0].uri;
+            const fileName = imageUri.split('/').pop().toLowerCase();
+
+            // Verificar que sea JPG o PNG
+            if (!fileName.endsWith('.jpg') && !fileName.endsWith('.jpeg') && !fileName.endsWith('.png')) {
+                Alert.alert(
+                    'Formato no válido',
+                    'Por favor selecciona solo imágenes en formato JPG o PNG'
+                );
+                return;
+            }
+
+            // Guardar la imagen directamente sin editor
+            console.log('📸 Imagen seleccionada:', imageUri);
+            set_custom_image(imageUri);
+            set_selected_design(null);
+            set_selected_template(null);
+
+            console.log('✅ custom_image actualizado a:', imageUri);
         }
-    };
-
-    const handle_save_edited_image = (editedUri) => {
-        console.log('Guardando imagen editada:', editedUri);
-        set_custom_image(editedUri);
-        set_selected_design(null);
-        set_show_image_editor(false);
-        set_temp_image(null);
-
-        // Mostrar confirmación visual innovadora
-        set_show_save_confirmation(true);
-        setTimeout(() => {
-            set_show_save_confirmation(false);
-        }, 2500);
-    };
-
-    const handle_close_editor = () => {
-        set_show_image_editor(false);
-        set_temp_image(null);
     };
 
     // Funciones para manejar selección de tallas
@@ -448,7 +453,22 @@ const ProductDetailScreen = ({ navigation, route }) => {
                     <Ionicons name="arrow-back" size={24} color={COLORS.white} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Detalle del Producto</Text>
-                <View style={styles.placeholder} />
+                <TouchableOpacity
+                    onPress={() => navigation.navigate('MainDrawer', {
+                        screen: 'MainTabs',
+                        params: { screen: 'Cart' }
+                    })}
+                    style={styles.cartButton}
+                >
+                    <Ionicons name="cart-outline" size={26} color={COLORS.white} />
+                    {get_item_count() > 0 && (
+                        <View style={styles.cartBadge}>
+                            <Text style={styles.cartBadgeText}>
+                                {get_item_count() > 99 ? '99+' : get_item_count()}
+                            </Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
             </View>
 
             {/* Barra de búsqueda */}
@@ -490,37 +510,33 @@ const ProductDetailScreen = ({ navigation, route }) => {
                             <Ionicons name="image-outline" size={60} color="#ccc" />
                         </View>
                     )}
-
-                    {/* Confirmación visual innovadora de guardado */}
-                    {show_save_confirmation && (
-                        <View style={styles.saveConfirmationOverlay}>
-                            <View style={styles.saveConfirmationCard}>
-                                <View style={styles.checkmarkCircle}>
-                                    <Ionicons name="checkmark" size={40} color={COLORS.white} />
-                                </View>
-                                <Text style={styles.saveConfirmationTitle}>¡Diseño Guardado!</Text>
-                                <Text style={styles.saveConfirmationSubtitle}>
-                                    Tu personalización está lista
-                                </Text>
-                                {/* Preview con modelo de taza */}
-                                <View style={styles.savedPreviewContainer}>
-                                    <Image
-                                        source={require('../../img/modelo-taza.jpg')}
-                                        style={styles.savedMugModel}
-                                        resizeMode="contain"
-                                    />
-                                    <View style={styles.savedCustomArea}>
-                                        <Image
-                                            source={{ uri: custom_image }}
-                                            style={styles.savedCustomImage}
-                                            resizeMode="contain"
-                                        />
-                                    </View>
-                                </View>
-                            </View>
-                        </View>
-                    )}
                 </View>
+
+                {/* Mostrar imagen personalizada si existe */}
+                {custom_image && (
+                    <View style={styles.customImageContainer}>
+                        <View style={styles.customImageHeader}>
+                            <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                            <Text style={styles.customImageTitle}>Imagen Personalizada</Text>
+                            <TouchableOpacity
+                                onPress={() => set_custom_image(null)}
+                                style={styles.removeImageButton}
+                            >
+                                <Ionicons name="close-circle" size={20} color="#FF3B30" />
+                            </TouchableOpacity>
+                        </View>
+                        <View style={styles.customImagePreview}>
+                            <Image
+                                source={{ uri: custom_image }}
+                                style={styles.customImagePreviewImg}
+                                resizeMode="cover"
+                            />
+                        </View>
+                        <Text style={styles.customImageInfo}>
+                            Esta imagen se aplicará a tu producto
+                        </Text>
+                    </View>
+                )}
 
                 {/* Información del producto */}
                 <View style={styles.infoContainer}>
@@ -1012,14 +1028,6 @@ const ProductDetailScreen = ({ navigation, route }) => {
                     </View>
                 </View>
             </Modal>
-
-            {/* Modal de Editor de Imágenes */}
-            <ImageEditorModal
-                visible={show_image_editor}
-                imageUri={temp_image}
-                onClose={handle_close_editor}
-                onSave={handle_save_edited_image}
-            />
         </SafeAreaView>
     );
 };
@@ -1052,8 +1060,28 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: COLORS.white,
     },
-    placeholder: {
-        width: 34,
+    cartButton: {
+        padding: 5,
+        position: 'relative',
+    },
+    cartBadge: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        backgroundColor: '#FF3B30',
+        borderRadius: 10,
+        minWidth: 18,
+        height: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+        borderWidth: 2,
+        borderColor: COLORS.primary,
+    },
+    cartBadgeText: {
+        color: COLORS.white,
+        fontSize: 10,
+        fontWeight: 'bold',
     },
     searchContainer: {
         backgroundColor: COLORS.white,
@@ -1809,6 +1837,51 @@ const styles = StyleSheet.create({
         color: '#999',
         textAlign: 'center',
         padding: 10,
+    },
+    customImageContainer: {
+        backgroundColor: COLORS.white,
+        marginHorizontal: 20,
+        marginTop: 15,
+        borderRadius: 15,
+        padding: 15,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    customImageHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    customImageTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: COLORS.textDark,
+        marginLeft: 8,
+        flex: 1,
+    },
+    removeImageButton: {
+        padding: 4,
+    },
+    customImagePreview: {
+        width: '100%',
+        height: 200,
+        borderRadius: 12,
+        overflow: 'hidden',
+        backgroundColor: '#f5f5f5',
+        marginBottom: 10,
+    },
+    customImagePreviewImg: {
+        width: '100%',
+        height: '100%',
+    },
+    customImageInfo: {
+        fontSize: 12,
+        color: '#666',
+        textAlign: 'center',
+        fontStyle: 'italic',
     },
 });
 

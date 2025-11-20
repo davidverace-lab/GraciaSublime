@@ -11,7 +11,15 @@ export const getCartItems = async (userId) => {
     const { data, error } = await supabase
       .from('cart_items')
       .select(`
-        *,
+        cart_item_id,
+        user_id,
+        product_id,
+        variant_id,
+        quantity,
+        custom_image,
+        custom_design,
+        design_name,
+        created_at,
         products (
           product_id,
           name,
@@ -32,6 +40,7 @@ export const getCartItems = async (userId) => {
       .eq('user_id', userId);
 
     if (error) throw error;
+    console.log('📦 Items del carrito obtenidos:', data);
     return { data, error: null };
   } catch (error) {
     console.error('Error obteniendo items del carrito:', error);
@@ -40,25 +49,65 @@ export const getCartItems = async (userId) => {
 };
 
 // Agregar item al carrito
-export const addToCart = async (userId, productId, quantity = 1, variantId = null) => {
+export const addToCart = async (userId, productId, quantity = 1, variantId = null, customization = null) => {
   try {
-    // Primero verificar si el producto ya está en el carrito (con la misma variante)
-    let checkQuery = supabase
-      .from('cart_items')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('product_id', productId);
+    // customization puede contener: { custom_image, custom_design, design_name }
 
-    // Si hay variante, verificar que sea la misma variante
-    if (variantId) {
-      checkQuery = checkQuery.eq('variant_id', variantId);
+    // Productos con diferentes personalizaciones deben ser items separados
+    // Solo agrupamos si:
+    // 1. Es el mismo producto
+    // 2. Tiene la misma variante (o ambos sin variante)
+    // 3. Tiene la misma personalización (misma imagen o diseño)
+
+    let existingItem = null;
+
+    // Si hay personalización, buscar un item con la misma personalización
+    if (customization && (customization.custom_image || customization.custom_design)) {
+      const { data: allItems, error: fetchError } = await supabase
+        .from('cart_items')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('product_id', productId);
+
+      if (fetchError) throw fetchError;
+
+      // Buscar manualmente un item que coincida con la misma personalización
+      if (allItems && allItems.length > 0) {
+        existingItem = allItems.find(item => {
+          // Verificar variante
+          const sameVariant = variantId
+            ? item.variant_id === variantId
+            : item.variant_id === null;
+
+          if (!sameVariant) return false;
+
+          // Verificar personalización
+          const sameCustomImage = item.custom_image === customization.custom_image;
+          const sameCustomDesign = JSON.stringify(item.custom_design) === JSON.stringify(customization.custom_design);
+
+          return sameCustomImage && sameCustomDesign;
+        });
+      }
     } else {
-      checkQuery = checkQuery.is('variant_id', null);
+      // Sin personalización, buscar producto sin personalización
+      let checkQuery = supabase
+        .from('cart_items')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('product_id', productId)
+        .is('custom_image', null)
+        .is('custom_design', null);
+
+      if (variantId) {
+        checkQuery = checkQuery.eq('variant_id', variantId);
+      } else {
+        checkQuery = checkQuery.is('variant_id', null);
+      }
+
+      const { data, error: checkError } = await checkQuery.maybeSingle();
+      if (checkError) throw checkError;
+      existingItem = data;
     }
-
-    const { data: existingItem, error: checkError } = await checkQuery.maybeSingle();
-
-    if (checkError) throw checkError;
 
     if (existingItem) {
       // Si existe, actualizar cantidad
@@ -67,7 +116,15 @@ export const addToCart = async (userId, productId, quantity = 1, variantId = nul
         .update({ quantity: existingItem.quantity + quantity })
         .eq('cart_item_id', existingItem.cart_item_id)
         .select(`
-          *,
+          cart_item_id,
+          user_id,
+          product_id,
+          variant_id,
+          quantity,
+          custom_image,
+          custom_design,
+          design_name,
+          created_at,
           products (
             product_id,
             name,
@@ -88,6 +145,7 @@ export const addToCart = async (userId, productId, quantity = 1, variantId = nul
         .single();
 
       if (error) throw error;
+      console.log('✅ Item actualizado en carrito:', data);
       return { data, error: null };
     } else {
       // Si no existe, crear nuevo item
@@ -102,11 +160,35 @@ export const addToCart = async (userId, productId, quantity = 1, variantId = nul
         insertData.variant_id = variantId;
       }
 
+      // Agregar personalización si existe
+      if (customization) {
+        console.log('💾 Guardando personalización:', customization);
+        if (customization.custom_image) {
+          insertData.custom_image = customization.custom_image;
+        }
+        if (customization.custom_design) {
+          insertData.custom_design = customization.custom_design;
+        }
+        if (customization.design_name) {
+          insertData.design_name = customization.design_name;
+        }
+      }
+
+      console.log('💾 Datos a insertar en cart_items:', insertData);
+
       const { data, error } = await supabase
         .from('cart_items')
         .insert([insertData])
         .select(`
-          *,
+          cart_item_id,
+          user_id,
+          product_id,
+          variant_id,
+          quantity,
+          custom_image,
+          custom_design,
+          design_name,
+          created_at,
           products (
             product_id,
             name,
@@ -126,7 +208,12 @@ export const addToCart = async (userId, productId, quantity = 1, variantId = nul
         `)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error insertando en cart_items:', error);
+        throw error;
+      }
+
+      console.log('✅ Item insertado en carrito:', data);
       return { data, error: null };
     }
   } catch (error) {
@@ -148,7 +235,15 @@ export const updateCartItemQuantity = async (cartItemId, quantity) => {
       .update({ quantity })
       .eq('cart_item_id', cartItemId)
       .select(`
-        *,
+        cart_item_id,
+        user_id,
+        product_id,
+        variant_id,
+        quantity,
+        custom_image,
+        custom_design,
+        design_name,
+        created_at,
         products (
           product_id,
           name,
